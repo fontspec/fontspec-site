@@ -1,0 +1,39 @@
+name: Update OpenType Shaping Docs
+
+on:
+  # Manual trigger for testing
+  workflow_dispatch:
+
+  # Triggered by the opentype-shaping-documents repo
+  repository_dispatch:
+    types: [shaping-docs-updated]
+
+jobs:
+  update-shaping-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download latest shaping docs release
+        run: |
+          gh release download latest \
+            --repo n8willis/opentype-shaping-documents \
+            --pattern 'ShapingDocumentsHTML.zip' \
+            --dir /tmp
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract into subdirectory
+        run: |
+          rm -rf opentype-shaping
+          unzip /tmp/ShapingDocumentsHTML.zip -d opentype-shaping
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: Update OpenType shaping documents
+          title: Update OpenType shaping documents
+          body: |
+            Automated update of OpenType shaping documents from
+            [n8willis/opentype-shaping-documents](https://github.com/n8willis/opentype-shaping-documents).
+          branch: update-shaping-docs
