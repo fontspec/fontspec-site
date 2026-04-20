@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Notes on Emoji font implementation &#8212; OpenType&lt;br&gt;Shaping&lt;br&gt;Documents 0.9alpha1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=4fdef1ce" />
+    <script src="../_static/documentation_options.js?v=3c7e0f13"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/toggleSvgColors.js?v=b5535ca0"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Character tables" href="../character-tables/index.html" />
+    <link rel="prev" title="Ragel State Machine operators" href="ragel-machine-notation.html" />
+  
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="notes-on-emoji-font-implementation">
+<h1>Notes on Emoji font implementation<a class="headerlink" href="#notes-on-emoji-font-implementation" title="Link to this heading">¶</a></h1>
+<p>This document notes details on how common Emoji fonts implement
+sequence, modifier, varation-selection, text-presentation
+fallback, and other behavior, for the purposes of testing and
+debugging.</p>
+<p>Emoji fonts are deployed by vendors using a variety of different
+image formats (including the <code class="docutils literal notranslate"><span class="pre">SVG</span> </code>, <code class="docutils literal notranslate"><span class="pre">COLR</span></code>v0/<code class="docutils literal notranslate"><span class="pre">CPAL</span></code>,
+<code class="docutils literal notranslate"><span class="pre">COLR</span></code>v1/<code class="docutils literal notranslate"><span class="pre">CPAL</span></code>, <code class="docutils literal notranslate"><span class="pre">glyf</span></code>, and <code class="docutils literal notranslate"><span class="pre">cff</span> </code> vector formats and the <code class="docutils literal notranslate"><span class="pre">CBDT</span></code>
+and <code class="docutils literal notranslate"><span class="pre">sbix</span></code> raster formats), which can make it difficult to
+characterize Emoji font behavior.</p>
+<p>Similarly, Emoji font vendors have employed a variety of
+different OpenType features to implement support for standard
+sequences, modifier-based sequences, <abbr title="Zero-Width Joiner">ZWJ</abbr>-based sequences and
+permutations.</p>
+<p>See the <a class="reference internal" href="../opentype-shaping-emoji.html"><span class="std std-doc">Emoji shaping document</span></a>
+for more details on the sequences and definitions involved.</p>
+<section id="format-features-and-control-codepoint-visiblity-table">
+<h2>Format, features, and control-codepoint visiblity table<a class="headerlink" href="#format-features-and-control-codepoint-visiblity-table" title="Link to this heading">¶</a></h2>
+<p>This table lists the image format, the <abbr title="Glyph Substitution table">GSUB</abbr> feature(s) used for
+basic Emoji sequence support and <abbr title="Zero-Width Joiner">ZWJ</abbr>-based sequence support, and
+whether or not the font includes a visible glyph for the
+presentation selector codepoints (VS15, <code class="docutils literal notranslate"><span class="pre">U+FE0E</span></code>; VS16, <code class="docutils literal notranslate"><span class="pre">U+FE0F</span></code>)
+and modifier codepoints (<code class="docutils literal notranslate"><span class="pre">U+1F3FB</span></code>..<code class="docutils literal notranslate"><span class="pre">U+1F3FF</span></code>).</p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-number">Table 1 </span><span class="caption-text">Emoji sequence implementation details</span><a class="headerlink" href="#id1" title="Link to this table">¶</a></caption>
+<thead>
+<tr class="row-odd"><th class="head text-left"><p>Font</p></th>
+<th class="head text-left"><p>publisher</p></th>
+<th class="head text-left"><p>image format</p></th>
+<th class="head text-left"><p>sequence formation feature</p></th>
+<th class="head text-left"><p>ZWJ sequence feature</p></th>
+<th class="head text-left"><p>visible presentation selector</p></th>
+<th class="head text-left"><p>visible modifier</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-left"><p>Source Emoji</p></td>
+<td class="text-left"><p>Adobe</p></td>
+<td class="text-left"><p>cff</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp, salt</p></td>
+<td class="text-left"><p>YES</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p>Blobmoji</p></td>
+<td class="text-left"><p>C1710</p></td>
+<td class="text-left"><p>CBDT</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p>Twemoji</p></td>
+<td class="text-left"><p>Twitter</p></td>
+<td class="text-left"><p>SVG</p></td>
+<td class="text-left"><p>liga</p></td>
+<td class="text-left"><p>liga</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p>Noto Color Emoji</p></td>
+<td class="text-left"><p>Google</p></td>
+<td class="text-left"><p>CBDT</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p>Noto Color Emoji</p></td>
+<td class="text-left"><p>Google</p></td>
+<td class="text-left"><p>COLRv1</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p>EmojiTwo Android</p></td>
+<td class="text-left"><p>EmojiTwo</p></td>
+<td class="text-left"><p>CBDT</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p>EmojiTwo Apple</p></td>
+<td class="text-left"><p>EmojiTwo</p></td>
+<td class="text-left"><p>sbix</p></td>
+<td class="text-left"><p>morx</p></td>
+<td class="text-left"><p>morx</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p>EmojiTwo SVG</p></td>
+<td class="text-left"><p>EmojiTwo</p></td>
+<td class="text-left"><p>SVG</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p>Openmoji</p></td>
+<td class="text-left"><p>HfG Gmünd</p></td>
+<td class="text-left"><p>SVG</p></td>
+<td class="text-left"><p>liga</p></td>
+<td class="text-left"><p>liga</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p>FirefoxEmoji</p></td>
+<td class="text-left"><p>Mozilla</p></td>
+<td class="text-left"><p>COLRv0</p></td>
+<td class="text-left"><p>rlig</p></td>
+<td class="text-left"><p>rlig</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>no</p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p>Noto Emoji</p></td>
+<td class="text-left"><p>Google</p></td>
+<td class="text-left"><p>glyf</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p>Old Noto B&amp;W Emoji</p></td>
+<td class="text-left"><p>Google</p></td>
+<td class="text-left"><p>glyf</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>no</p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p>JoyPixels</p></td>
+<td class="text-left"><p>JoyPixels</p></td>
+<td class="text-left"><p>CBDT</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p>Apple Color Emoji</p></td>
+<td class="text-left"><p>Apple</p></td>
+<td class="text-left"><p>sbix</p></td>
+<td class="text-left"><p>morx</p></td>
+<td class="text-left"><p>morx</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p>Samsung Color Emoji</p></td>
+<td class="text-left"><p>Samsung</p></td>
+<td class="text-left"><p>CBDT</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>no</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p>Segoe UI Emoji</p></td>
+<td class="text-left"><p>Microsoft</p></td>
+<td class="text-left"><p>COLRv0</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>ccmp</p></td>
+<td class="text-left"><p>YES</p></td>
+<td class="text-left"><p>YES</p></td>
+</tr>
+</tbody>
+</table>
+<section id="contributing-additional-data">
+<h3>Contributing additional data<a class="headerlink" href="#contributing-additional-data" title="Link to this heading">¶</a></h3>
+<p>Volunteers or implementers who wish to contribute data for additional
+Emoji fonts may need to collecting the information themselves by
+inspecting font binaries.</p>
+<p>Options available include:</p>
+<ol class="arabic simple">
+<li><p><strong>FontTools / TTX</strong></p>
+<ul class="simple">
+<li><p>Users can run <code class="docutils literal notranslate"><span class="pre">ttx</span> <span class="pre">-l</span> <span class="pre">somefontfilename.ttf</span></code> (or <code class="docutils literal notranslate"><span class="pre">.otf</span></code> or <code class="docutils literal notranslate"><span class="pre">.ttc</span></code>
+or <code class="docutils literal notranslate"><span class="pre">.otc</span></code>) to get a short list of the tables. The presence of <code class="docutils literal notranslate"><span class="pre">SVG</span> </code>,
+<code class="docutils literal notranslate"><span class="pre">CBDT</span></code>, <code class="docutils literal notranslate"><span class="pre">sbix</span></code>, or <code class="docutils literal notranslate"><span class="pre">COLR</span></code> indicates that whichever one of those exists
+is the image format. <em>If</em> none of the above are there but <code class="docutils literal notranslate"><span class="pre">glyf</span></code> or <code class="docutils literal notranslate"><span class="pre">CFF</span> </code>
+or <code class="docutils literal notranslate"><span class="pre">CFF2</span></code> <em>is</em> there, then whichever of those three exists is the
+image format (and means it’s a black-and-white emoji font, which users
+would probably know beforehand anyway). If there’s more than one of
+<code class="docutils literal notranslate"><span class="pre">SVG</span> </code>, <code class="docutils literal notranslate"><span class="pre">CBDT</span></code>, <code class="docutils literal notranslate"><span class="pre">sbix</span></code>, or <code class="docutils literal notranslate"><span class="pre">COLR</span></code> present in the same font file, that
+would likely mean unknown behavior; comments on such cases are welcome.</p></li>
+<li><p>Users can run the <code class="docutils literal notranslate"><span class="pre">layout-features.py</span> <span class="pre">somefontfilename.ttf</span></code>
+script (which can be found in the <code class="docutils literal notranslate"><span class="pre">/Snippets/</span></code> directory of the
+<code class="docutils literal notranslate"><span class="pre">FontTools</span></code> package source) and it will print out an indented
+list of the <abbr title="Glyph Substitution table">GSUB</abbr> and <abbr title="Glyph Positioning table">GPOS</abbr> features
+used. All that matters for the table above is what the script
+reports on the <code class="docutils literal notranslate"><span class="pre">Feature:</span> </code> line. For a typical emoji font there’s
+probably only one feature – but, if there are several, listing
+them is useful.</p></li>
+</ul>
+</li>
+<li><p><strong>AllSorts / allsorts-tools</strong></p>
+<ul class="simple">
+<li><p>Users can use the <code class="docutils literal notranslate"><span class="pre">dump</span></code> tool from the <code class="docutils literal notranslate"><span class="pre">allsorts-tools</span></code> package
+to run <code class="docutils literal notranslate"><span class="pre">allsorts</span> <span class="pre">dump</span> <span class="pre">somefilename.ttf</span></code> and get a list of tables plus
+other metadata; the tables are the first output. Same interpretation
+as above.</p></li>
+<li><p>At the moment it sounds like there isn’t a single-command option in
+<code class="docutils literal notranslate"><span class="pre">allsorts</span></code> to list <abbr title="Glyph Substitution table">GSUB</abbr>/<abbr title="Glyph Positioning table">GPOS</abbr> features. Corrections are welcome.</p></li>
+</ul>
+</li>
+<li><p><strong>GUI font editors</strong></p>
+<ul class="simple">
+<li><p>Users can also open up the font file in a font editor and look at what
+it presents.</p></li>
+<li><p>FontForge:</p>
+<ul>
+<li><p>In FontForge, go to Element -&gt; Font Info in the menu to open the
+font-info dialog box. It will show the <abbr title="Glyph Substitution table">GSUB</abbr>/<abbr title="Glyph Positioning table">GPOS</abbr> lookups in the
+“Lookups” tab (left-hand side).</p></li>
+<li><p>FontForge does <em>not</em> just show a convenient list of all the tables.
+However, when users open the font file, the “Warnings” dialog box will
+report if it finds <code class="docutils literal notranslate"><span class="pre">SVG</span> </code>, <code class="docutils literal notranslate"><span class="pre">CBDT</span></code>, <code class="docutils literal notranslate"><span class="pre">sbix</span></code>, or <code class="docutils literal notranslate"><span class="pre">COLR</span></code> tables.
+Unfortunately, it will only actually open the font for
+editing/inspection if it finds a <code class="docutils literal notranslate"><span class="pre">glyf</span></code>, <code class="docutils literal notranslate"><span class="pre">CFF</span> </code>, or <code class="docutils literal notranslate"><span class="pre">CFF2</span></code> table
+(which a <code class="docutils literal notranslate"><span class="pre">COLR</span></code> font would have) or an <code class="docutils literal notranslate"><span class="pre">SVG</span> </code> table. So users can’t
+use it to inspect the features of the other formats.</p></li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<p>(Further instructions will be added to this list for other editors if volunteers
+can contribute them)</p>
+<p>For determining if there’s a printable glyph for the selectors/modifiers:</p>
+<ol class="arabic simple">
+<li><p><strong>GUI font editors</strong></p>
+<ul class="simple">
+<li><p>Users can open up the font in an editor and look at the slots for the
+Unicode codepoints for the presentation selectors (<code class="docutils literal notranslate"><span class="pre">U+FE0E</span></code> and <code class="docutils literal notranslate"><span class="pre">U+FE0F</span></code>)
+and the modifiers (<code class="docutils literal notranslate"><span class="pre">U+1F3FB</span></code> through <code class="docutils literal notranslate"><span class="pre">U+1F3FF</span></code>), if they exist (they might not).</p></li>
+</ul>
+</li>
+<li><p><strong>HarfBuzz</strong></p>
+<ul class="simple">
+<li><p>Users can run the <code class="docutils literal notranslate"><span class="pre">hb-view</span></code> utility to output glyph contents for specific
+Unicode codepoints, but one might have to try a couple of options, depending
+on the image format. Run <code class="docutils literal notranslate"><span class="pre">hb-view</span> <span class="pre">--preserve-default-ignorables</span> <span class="pre">somefontfilename.ttf</span> <span class="pre">--unicodes=fe0e</span></code>
+to start (for <code class="docutils literal notranslate"><span class="pre">U+FE0E</span></code>). Users may also try adding the <code class="docutils literal notranslate"><span class="pre">--font-funcs=ot</span></code>
+and/or <code class="docutils literal notranslate"><span class="pre">--shapers=ot</span></code> flags to that command if it gives trouble.</p></li>
+</ul>
+</li>
+</ol>
+</section>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">OpenType<br>Shaping<br>Documents</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=n8willis&repo=opentype-shaping-documents&type=watch&count=True&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+<h3>Contents</h3>
+<ul class="current">
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/index.html">Overview</a>
+  </li>
+  <li class="toctree-l1 static-nav static-nav-heading">
+    Script shaping
+    <ul class="current">
+      <li class="toctree-l2 static-nav static-nav-heading">
+	Indic Model
+	<ul class="current">
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-indic-general.html">Indic general</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-devanagari.html">Devanagari</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-bengali.html">Bengali</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-gujarati.html">Gujarati</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-gurmukhi.html">Gurmukhi</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-kannada.html">Kannada</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-malayalam.html">Malayalam</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-oriya.html">Oriya</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-sinhala.html">Sinhala</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-tamil.html">Tamil</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-telugu.html">Telugu</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-vedic-extensions.html">Vedic Extensions</a>
+	  </li>
+	</ul>
+      </li>
+      <li class="toctree-l2 static-nav static-nav-heading">
+	Arabic Model
+	<ul class="current">
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-arabic-general.html">Arabic general</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-arabic.html">Arabic</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-nko.html">N'Ko</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-syriac.html">Syriac</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-mongolian.html">Mongolian</a>
+	  </li>
+	</ul>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-hangul.html">Hangul</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-hebrew.html">Hebrew</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-khmer.html">Khmer</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-myanmar.html">Myanmar</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-thai-lao.html">Thai and Lao</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-tibetan.html">Tibetan</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-use.html">Universal Shaping Engine</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-default.html">Default scripts</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-emoji.html">Emoji</a>
+      </li>
+    </ul>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/opentype-shaping-normalization.html">Normalization</a>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/notes/README.html">Notes</a>
+    <ul>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/notes/uniscribe-bug-compatibility.html">Uniscribe compatibility</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/notes/ragel-machine-notation.html">Ragel state-machine operators</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/notes/emoji-implementation.html">Emoji implementation</a>
+      </li>
+    </ul>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/character-tables/character-tables-index.html">Character Tables</a>
+    <ul>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-arabic.html">Arabic</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-bengali.html">Bengali</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-devanagari.html">Devanagari</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-gujarati.html">Gujarati</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-gurmukhi.html">Gurmukhi</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-hangul.html">Hangul</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-hebrew.html">Hebrew</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-kannada.html">Kannada</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-khmer.html">Khmer</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-lao.html">Lao</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-malayalam.html">Malayalam</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-mongolian.html">Mongolian</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-myanmar.html">Myanmar</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-nko.html">N'Ko</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-oriya.html">Oriya</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-sinhala.html">Sinhala</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-syriac.html">Syriac</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-tamil.html">Tamil</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-telugu.html">Telugu</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-thai.html">Thai</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-tibetan.html">Tibetan</a>
+      </li>
+    </ul>    
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/errata.html">Errata</a>
+  </li>
+</ul>
+
+<hr>
+
+<ul class="extra-links">
+  <li class="toctree-l1 static-nav">
+    <a class="reference external" href="https://github.com/n8willis/opentype-shaping-documents/issues">GitHub issues</a>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference external" href="https://github.com/n8willis/opentype-shaping-documents/blob/master/BUILD.md">Build process</a>
+  </li>
+</ul>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/notes/emoji-implementation.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2022, Sponsored by YesLogic.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/notes/emoji-implementation.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
