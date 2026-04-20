@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>18. Hangul script shaping in OpenType &#8212; OpenType&lt;br&gt;Shaping&lt;br&gt;Documents 0.9alpha1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=4fdef1ce" />
+    <script src="_static/documentation_options.js?v=3c7e0f13"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/toggleSvgColors.js?v=b5535ca0"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="19. Hebrew script shaping in OpenType" href="opentype-shaping-hebrew.html" />
+    <link rel="prev" title="17. Mongolian script shaping in OpenType" href="opentype-shaping-mongolian.html" />
+  
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <link rel="preload" href="/images/color-filters.svg" as="image"/><section id="hangul-script-shaping-in-opentype">
+<h1><span class="section-number">18. </span>Hangul script shaping in OpenType<a class="headerlink" href="#hangul-script-shaping-in-opentype" title="Link to this heading">¶</a></h1>
+<p>This document details the general shaping procedure shared by all
+Hangul script styles, and defines the common pieces that style-specific
+implementations share.</p>
+<p><strong>Contents</strong></p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#general-information">General information</a></p></li>
+<li><p><a class="reference internal" href="#terminology">Terminology</a></p></li>
+<li><p><a class="reference internal" href="#glyph-classification">Glyph classification</a></p>
+<ul>
+<li><p><a class="reference internal" href="#jamo-type">Jamo type</a></p></li>
+<li><p><a class="reference internal" href="#composing-behavior">Composing behavior</a></p></li>
+<li><p><a class="reference internal" href="#character-tables">Character tables</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#the-hang-shaping-model">The <code class="docutils literal notranslate"><span class="pre">&lt;hang&gt;</span></code> shaping model</a></p>
+<ul>
+<li><p><a class="reference internal" href="#stage-1-identifying-syllables">Stage 1: Identifying syllables</a></p></li>
+<li><p><a class="reference internal" href="#stage-2-determining-if-the-syllable-can-be-composed-into-a-hangul-syllables-codepoint">Stage 2: Determining if the syllable can be composed into a Hangul Syllables codepoint</a></p></li>
+<li><p><a class="reference internal" href="#stage-3-composing-the-syllable-if-composition-is-possible">Stage 3: Composing the syllable (if composition is possible)</a></p></li>
+<li><p><a class="reference internal" href="#stage-4-fully-decomposing-the-syllable-if-composition-is-not-possible">Stage 4: Fully decomposing the syllable (if composition is not possible)</a></p></li>
+<li><p><a class="reference internal" href="#stage-5-shaping-the-fully-decomposed-syllable-with-gsub-features">Stage 5: Shaping the fully decomposed syllable with <abbr>GSUB</abbr> features</a></p></li>
+<li><p><a class="reference internal" href="#stage-6-reordering-tone-marks">Stage 6: Reordering tone marks</a></p></li>
+</ul>
+</li>
+</ul>
+<section id="general-information">
+<h2><span class="section-number">18.1. </span>General information<a class="headerlink" href="#general-information" title="Link to this heading">¶</a></h2>
+<p>The Hangul script is used to write Korean. It may also be referred to
+as the Choseongul script or Jeongum script, and is in use in both
+North Korea and South Korea as well as regions within China. It may
+also be used to write the Cia-Cia language in Indonesia.</p>
+<p>Hangul syllables are formed from individual alphabetic letters that
+are arranged into square cells using pre-defined patterns. The
+syllables themselves are monospaced in a run of text, using interword
+spacing and punctuation.</p>
+<p>Korean text may, in practice, incorporate Chinese characters (“Hanja”)
+in addition to Hangul. Hanja characters are not affected by the
+shaping model for Hangul.</p>
+<p>Modern Korean text is typically written (and, therefore, rendered)
+left to right. Classical and older texts, however, may be written
+vertically, top to bottom.</p>
+</section>
+<section id="terminology">
+<h2><span class="section-number">18.2. </span>Terminology<a class="headerlink" href="#terminology" title="Link to this heading">¶</a></h2>
+<p>OpenType shaping uses a standard set of terms for elements of the
+Hangul script. The terms used colloquially in any particular language
+or country may vary, however, potentially causing confusion.</p>
+<p><strong>Jamo</strong> characters are the fundamental letters from which syllable
+blocks are constructed.  There are three classes of jamo:</p>
+<ul class="simple">
+<li><p><strong>L</strong>eading consonants (choseong)</p></li>
+<li><p><strong>V</strong>owels (jungseong)</p></li>
+<li><p><strong>T</strong>railing consonants (jongseong)</p></li>
+</ul>
+<p>Most, but not all, of the basic consonant letters can appear either in
+leading or in trailing form. Nevertheless, the leading and trailing forms are
+assigned distinct codepoints in Unicode. In addition, the set of valid
+trailing consonants includes several compound-consonant pairs that can
+never occur in leading form.</p>
+<p>Old Korean featured a considerable number of additional jamo, which
+are also defined in Unicode.  Many of these Old Korean jamo are
+compound forms that concatenate two or three basic jamo.</p>
+<p>A <strong>syllable</strong> is formed by arranging a sequence of jamo into its
+appropriate square-cell form. The horizontal and vertical positioning
+of each jamo in the cell depends on the content of the syllable. The
+exact shape and proportions of each jamo will also vary with its final
+position in the cell.</p>
+<p>Valid syllables must be either of the form “<strong><code class="docutils literal notranslate"><span class="pre">L</span></code></strong>,<strong><code class="docutils literal notranslate"><span class="pre">V</span></code></strong>” or of the form
+“<strong><code class="docutils literal notranslate"><span class="pre">L</span></code></strong>,<strong><code class="docutils literal notranslate"><span class="pre">V</span></code></strong>,<strong><code class="docutils literal notranslate"><span class="pre">T</span></code></strong>”. That is, each syllable must begin with one leading
+consonant, must include one vowel in the second position, and may or may
+not end with one trailing consonant.</p>
+<figure class="align-default" id="id1">
+<svg width="138.265625pt" height="162.0625pt" viewbox="0 0 138.265625 162.0625" version="1.1" id="hangul-lv-syllable" class="shaping-demo inline-svg greyscale-svg" names="hangul-lv-syllable" uri="images/hangul/hangul-lv-syllable.svg" alt="LV syllable" title="LVT syllable">
+<defs>
+<g>
+<symbol overflow="visible" id="hangul-lv-syllable:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-lv-syllable:glyph0-1">
+<path style="stroke:none;" d="M 90.75 11.875 C 92.40625 5.9375 93.390625 -3.953125 93.390625 -10.015625 L 93.390625 -83.59375 L 93.609375 -88.984375 C 93.71875 -89.984375 93.390625 -90.75 92.296875 -91.078125 C 89.546875 -92.40625 82.9375 -93.71875 79.203125 -93.828125 C 78.4375 -93.828125 78.09375 -93.609375 77.875 -93.171875 L 77.109375 -90.640625 C 80.625 -89.4375 83.9375 -87.5625 85.6875 -85.359375 L 85.6875 -7.375 C 85.6875 -2.640625 85.90625 7.59375 86.34375 11.875 Z M 18.921875 -79.75 C 18.703125 -79.3125 18.703125 -79.09375 19.03125 -78.65625 C 20.5625 -76.453125 22.765625 -74.25 24.75 -73.046875 C 25.296875 -72.703125 25.734375 -72.703125 26.625 -72.703125 C 31.234375 -73.046875 38.71875 -73.046875 43.671875 -73.046875 C 44.328125 -73.046875 44.765625 -73.15625 45.203125 -73.703125 C 45.765625 -74.46875 45.984375 -76.78125 45.546875 -77.875 C 45.203125 -78.65625 44.765625 -78.765625 43.78125 -78.765625 C 36.953125 -78.875 28.703125 -79.203125 19.6875 -80.625 Z M 56.765625 -44.21875 C 54.234375 -44.21875 51.375 -44.328125 49.0625 -44.546875 L 48.40625 -43.453125 C 48.296875 -43.015625 48.40625 -42.6875 48.734375 -42.34375 C 50.484375 -40.703125 52.796875 -39.15625 55.328125 -37.953125 C 57.203125 -38.71875 59.953125 -39.375 61.703125 -39.484375 L 67.203125 -39.9375 L 67.203125 -14.515625 C 67.203125 -9.90625 67.3125 -0.21875 67.875 4.1875 L 72.046875 4.1875 C 73.59375 -1.546875 74.578125 -11.109375 74.578125 -17.15625 L 74.578125 -76.671875 L 74.90625 -81.515625 C 74.90625 -82.5 74.578125 -83.15625 73.703125 -83.484375 C 71.0625 -84.703125 65.015625 -86.015625 61.484375 -86.125 C 60.71875 -86.125 60.390625 -85.90625 60.28125 -85.46875 L 59.40625 -82.9375 C 62.59375 -81.84375 65.671875 -80.078125 67.203125 -78.203125 L 67.203125 -44.65625 C 63.796875 -44.328125 59.296875 -44.21875 56.765625 -44.21875 Z M 6.375 -12.3125 C 6.703125 -12.09375 7.046875 -12.203125 7.484375 -12.546875 C 18.59375 -18.703125 28.9375 -27.171875 36.953125 -36.296875 L 51.8125 -17.59375 C 52.359375 -16.828125 53.234375 -15.953125 53.90625 -15.625 C 55 -15.1875 56.984375 -15.625 57.640625 -16.828125 C 57.859375 -17.375 57.859375 -18.265625 57.421875 -19.578125 C 56.65625 -21.5625 55.21875 -25.1875 53.90625 -27.5 L 49.171875 -29.921875 L 40.375 -40.375 C 45.203125 -46.3125 48.953125 -52.46875 51.375 -58.296875 L 53.125 -61.59375 C 53.453125 -62.046875 53.453125 -62.59375 52.90625 -62.921875 C 52.140625 -63.46875 49.828125 -64.5625 48.734375 -65.015625 C 48.1875 -65.34375 47.296875 -65.34375 46.859375 -65.015625 L 43.5625 -63.359375 C 38.71875 -63.03125 21.125 -62.921875 17.484375 -62.921875 C 15.0625 -62.921875 11.546875 -63.03125 8.90625 -63.359375 L 8.25 -62.265625 C 8.140625 -61.9375 8.25 -61.59375 8.578125 -61.265625 C 10.5625 -59.515625 13.53125 -57.640625 16.171875 -56.4375 C 18.046875 -57.09375 21.671875 -57.859375 23.65625 -57.96875 C 26.1875 -58.296875 36.953125 -58.515625 42.234375 -58.625 C 35.75 -43.890625 22.328125 -26.953125 5.0625 -14.40625 C 4.734375 -13.96875 4.84375 -13.640625 5.0625 -13.421875 Z M 6.375 -12.3125 "></path>
+</symbol>
+</g>
+</defs>
+<g id="hangul-lv-syllable:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c0" href="#hangul-lv-syllable:glyph0-1"></use>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 18.2.1 </span><span class="caption-text">LV syllable</span><a class="headerlink" href="#id1" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hangul-lv-syllable" onclick='toggleColor("hangul-lv-syllable")'>Toggle cluster colors</button><figure class="align-default" id="id2">
+<svg width="138.265625pt" height="162.0625pt" viewbox="0 0 138.265625 162.0625" version="1.1" id="hangul-lvt-syllable" class="shaping-demo inline-svg greyscale-svg" names="hangul-lvt-syllable" uri="images/hangul/hangul-lvt-syllable.svg" alt="LVT syllable" title="LVT syllable">
+<defs>
+<g>
+<symbol overflow="visible" id="hangul-lvt-syllable:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-lvt-syllable:glyph0-1">
+<path style="stroke:none;" d="M 18.921875 -84.8125 C 18.703125 -84.375 18.8125 -84.15625 19.03125 -83.703125 C 20.6875 -81.515625 22.765625 -79.421875 24.75 -78.203125 C 25.296875 -77.765625 25.625 -77.765625 26.515625 -77.875 C 31.125 -78.09375 38.609375 -78.203125 43.5625 -78.3125 C 44.21875 -78.3125 44.65625 -78.4375 45.09375 -78.984375 C 45.65625 -79.640625 45.875 -81.953125 45.3125 -83.046875 C 45.09375 -83.8125 44.65625 -84.046875 43.78125 -84.046875 C 36.84375 -84.046875 28.8125 -84.375 19.6875 -85.6875 Z M 90.96875 -27.0625 C 92.296875 -31.453125 93.390625 -39.265625 93.390625 -45.09375 L 93.390625 -83.59375 L 93.609375 -88.984375 C 93.71875 -89.984375 93.390625 -90.75 92.296875 -91.078125 C 89.546875 -92.40625 82.9375 -93.71875 79.203125 -93.828125 C 78.4375 -93.828125 78.09375 -93.609375 77.875 -93.171875 L 77.109375 -90.640625 C 80.625 -89.4375 83.9375 -87.5625 85.6875 -85.359375 L 85.6875 -42.5625 C 85.6875 -38.609375 85.90625 -30.796875 86.34375 -27.0625 Z M 7.265625 -25.84375 C 7.59375 -25.734375 8.03125 -25.84375 8.46875 -26.0625 C 19.25 -31.234375 29.265625 -38.609375 37.40625 -46.53125 L 52.140625 -31.34375 C 52.796875 -30.6875 53.6875 -30.03125 54.234375 -29.8125 C 55.4375 -29.484375 57.3125 -30.359375 57.859375 -31.453125 C 58.078125 -32.015625 58.078125 -32.78125 57.53125 -33.875 C 56.875 -35.640625 55.328125 -38.5 54.015625 -40.484375 L 49.0625 -42.34375 L 40.8125 -50.15625 C 45.546875 -55.21875 49.28125 -60.609375 51.921875 -65.78125 L 54.015625 -68.96875 C 54.34375 -69.40625 54.34375 -69.953125 53.796875 -70.296875 C 52.90625 -70.84375 50.59375 -72.046875 49.28125 -72.59375 C 48.84375 -72.8125 48.0625 -72.8125 47.515625 -72.59375 L 43.890625 -70.734375 C 38.828125 -70.40625 21.453125 -70.1875 18.046875 -70.1875 C 15.515625 -70.1875 11.984375 -70.40625 9.453125 -70.953125 L 8.796875 -69.625 C 8.6875 -69.296875 8.796875 -68.96875 9.125 -68.640625 C 11.109375 -66.984375 14.078125 -65.234375 16.71875 -64.125 C 18.59375 -64.796875 22.4375 -65.5625 24.3125 -65.671875 C 26.734375 -65.890625 37.734375 -66.109375 42.90625 -66.21875 C 35.96875 -53.125 22.65625 -38.5 6.046875 -28.046875 C 5.71875 -27.609375 5.828125 -27.28125 6.15625 -27.0625 Z M 72.046875 -27.28125 C 73.375 -31.453125 74.359375 -38.71875 74.359375 -45.09375 L 74.359375 -77.765625 L 74.578125 -82.5 C 74.6875 -83.59375 74.25 -84.265625 73.484375 -84.59375 C 70.734375 -85.796875 64.796875 -87.125 61.265625 -87.234375 C 60.5 -87.234375 60.171875 -87.015625 59.953125 -86.5625 L 59.0625 -84.046875 C 62.375 -82.9375 65.34375 -81.1875 66.875 -79.203125 L 66.875 -54.5625 L 56.765625 -54.34375 C 54.453125 -54.34375 51.921875 -54.5625 49.828125 -54.890625 L 49.171875 -53.796875 C 49.0625 -53.453125 49.0625 -53.015625 49.5 -52.6875 C 51.046875 -51.265625 53.234375 -49.828125 55.4375 -48.734375 C 57.3125 -49.5 59.953125 -49.9375 61.703125 -50.046875 C 62.8125 -50.15625 64.90625 -50.265625 66.875 -50.15625 L 66.875 -42.6875 C 66.875 -38.390625 67.09375 -31.015625 67.546875 -27.28125 Z M 46.859375 -7.265625 L 46.859375 -17.046875 L 91.953125 -17.375 C 92.515625 -17.375 93.0625 -17.59375 93.5 -18.046875 C 94.046875 -18.59375 94.484375 -19.796875 94.484375 -21.453125 C 94.484375 -22.21875 94.046875 -22.765625 93.171875 -22.984375 C 90.75 -23.3125 86.453125 -23.546875 83.484375 -23.546875 L 80.40625 -22 C 75.015625 -21.78125 53.90625 -21.5625 47.078125 -21.671875 C 44.328125 -22.328125 37.734375 -22.765625 34.765625 -22.765625 C 33.984375 -22.765625 33.65625 -22.546875 33.546875 -22.21875 L 33 -19.578125 C 35.421875 -18.921875 37.625 -17.703125 38.9375 -16.28125 L 38.9375 -0.4375 C 38.9375 5.28125 41.578125 8.140625 48.296875 8.140625 L 93.9375 7.8125 C 94.484375 7.8125 95.046875 7.59375 95.375 7.265625 C 95.921875 6.703125 96.578125 5.390625 96.578125 3.734375 C 96.578125 2.859375 96.140625 2.3125 95.15625 2.203125 C 93.171875 1.65625 88.109375 1.3125 84.921875 1.3125 L 81.625 2.96875 C 75.453125 3.1875 56.203125 3.40625 49.390625 3.296875 C 47.515625 3.296875 46.859375 2.53125 46.859375 0.546875 Z M 46.859375 -7.265625 "></path>
+</symbol>
+</g>
+</defs>
+<g id="hangul-lvt-syllable:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c0" href="#hangul-lvt-syllable:glyph0-1"></use>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 18.2.2 </span><span class="caption-text">LVT syllable</span><a class="headerlink" href="#id2" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hangul-lvt-syllable" onclick='toggleColor("hangul-lvt-syllable")'>Toggle cluster colors</button><p>All possible syllables for Modern Korean are defined in the Hangul
+Syllables block of Unicode. A sequence of individual jamo codepoints
+that corresponds to a valid Modern Korean syllable can therefore be
+<strong>composed</strong> into a syllable codepoint.</p>
+<p>Sequences of codepoints that involve Old Korean jamo cannot be
+composed into syllable codepoints and are handled separately by the
+shaping engine.</p>
+<p>Two tone marks are common in Old Korean, the <strong>single-dot bangjeom</strong>
+and the <strong>double-dot bangjeom</strong>. Both bangjeom marks are rendered to
+the left of the syllable to which they are applied.</p>
+</section>
+<section id="glyph-classification">
+<h2><span class="section-number">18.3. </span>Glyph classification<a class="headerlink" href="#glyph-classification" title="Link to this heading">¶</a></h2>
+<p>Proper shaping of Hangul text runs involves determining when
+sequences of jamo can be composed into syllable codepoints that are included in
+the active font — in which case they should be replaced by the corresponding
+syllable glyph — and when they cannot.</p>
+<p>Those jamo sequences that cannot be composed into a syllable codepoint
+(or that compose into a syllable codepoint that is missing in the
+active font) are then rendered by shaping and positioning each
+individual jamo using <abbr title="Glyph Substitution table">GSUB</abbr> substitution rules.</p>
+<section id="jamo-type">
+<h3><span class="section-number">18.3.1. </span>Jamo type<a class="headerlink" href="#jamo-type" title="Link to this heading">¶</a></h3>
+<p>Each Hangul jamo is assigned a <code class="docutils literal notranslate"><span class="pre">JAMO_TYPE</span></code> property that indicates whether
+it is a leading consonant (<code class="docutils literal notranslate"><span class="pre">L</span></code>), a vowel (<code class="docutils literal notranslate"><span class="pre">V</span></code>), or a trailing
+consonant (<code class="docutils literal notranslate"><span class="pre">T</span></code>).</p>
+<p>Most, but not all, of the basic consonant letters can appear either in
+leading or in trailing form. Nevertheless, the leading and trailing
+forms are assigned distinct codepoints in Unicode. In addition, the
+set of valid trailing consonants includes several compound consonant
+pairs that can never occur in leading form.</p>
+<p>For example, the basic consonant “Kiyeok” (ᄀ) is encoded as <code class="docutils literal notranslate"><span class="pre">U+1100</span></code>
+in its leading (choseong) form but as <code class="docutils literal notranslate"><span class="pre">U+11A8</span></code> in its trailing
+(jongseong) form. The tense or emphatic form of the consonant,
+“Ssangkiyeok” (ᄁ), is encoded in its leading (choseong) form as
+<code class="docutils literal notranslate"><span class="pre">U+1101</span></code> but in its trailing (jongseong) form as <code class="docutils literal notranslate"><span class="pre">U+11A9</span></code>, and is
+rendered visually as a doubled version of the basic consonant.</p>
+<p>In addition, two compound trailing consonants, “Kiyeok-sios” (ᆪ
+<code class="docutils literal notranslate"><span class="pre">U+11AA</span></code>) and “Rieul-kiyeok” (ᆰ <code class="docutils literal notranslate"><span class="pre">U+11B0</span></code>), also incorporate the
+Kiyeok basic consonant. But Kiyeok-sios and Rieul-kiyeok are never
+used as leading consonants, therefore they are not encoded in leading
+(choseong) forms.</p>
+<blockquote>
+<div><p>Note: compound consonant jamo are not written as sequences of basic
+jamo. That is, <samp>“Kiyeok,Kiyeok”</samp> (ᄀᄀ) is not equivalent
+to <samp>“Ssangkiyeok”</samp> (ᄁ).</p>
+</div></blockquote>
+<p>The Hangul Jamo block also includes two “filler” codepoints. “Choseong
+Filler” (<code class="docutils literal notranslate"><span class="pre">U+115F</span></code>) can take the place of a missing choseong (<code class="docutils literal notranslate"><span class="pre">L</span></code>
+consonant), and “Jungseong Filler” (<code class="docutils literal notranslate"><span class="pre">U+1160</span></code>) can take the place of a
+missing jungseong (<code class="docutils literal notranslate"><span class="pre">V</span></code> vowel). For shaping purposes, the fillers are
+classified as type <code class="docutils literal notranslate"><span class="pre">Lf</span></code> and type <code class="docutils literal notranslate"><span class="pre">Vf</span></code>, respectively.</p>
+</section>
+<section id="composing-behavior">
+<h3><span class="section-number">18.3.2. </span>Composing behavior<a class="headerlink" href="#composing-behavior" title="Link to this heading">¶</a></h3>
+<p>Modern Korean features 19 leading consonants (<code class="docutils literal notranslate"><span class="pre">L</span></code> forms), 21 vowels
+(<code class="docutils literal notranslate"><span class="pre">V</span></code> forms), and 27 trailing consonants (<code class="docutils literal notranslate"><span class="pre">T</span></code> forms).</p>
+<p>Old Korean featured a considerable number of additional jamo, which
+are also defined in Unicode.  Some of these Old Korean jamo are
+distinct basic letters that are no longer used in Modern Korean. Many
+others are compound forms that concatenate two or even three basic jamo.</p>
+<p>The Hangul Syllables block in Unicode only includes those syllables
+that contain solely Modern jamo. Consequently, each jamo is assigned a
+<code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code> property to indicate whether it can be composed
+into a Hangul Syllable codepoint.</p>
+<p>An <samp>“<code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>,<code class="docutils literal notranslate"><span class="pre">T</span></code>”</samp> sequence with the <code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code>s
+“<code class="docutils literal notranslate"><span class="pre">YES</span></code>,<code class="docutils literal notranslate"><span class="pre">YES</span></code>,<code class="docutils literal notranslate"><span class="pre">YES</span></code>” or an <samp>“<code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>”</samp> sequence with the
+<code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code>s “<code class="docutils literal notranslate"><span class="pre">YES</span></code>,<code class="docutils literal notranslate"><span class="pre">YES</span></code>” will compose to a codepoint in the Hangul
+Syllables block. A sequence containing any <code class="docutils literal notranslate"><span class="pre">NO</span></code>s will not compose to a
+codepoint in the Hangul Syllables block.</p>
+<blockquote>
+<div><p>Note: the jamo filler codepoints are both designated with the
+<code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code> of <code class="docutils literal notranslate"><span class="pre">NO</span></code>.</p>
+</div></blockquote>
+<!--- ### Identification by Unicode range ### --->
+</section>
+<section id="character-tables">
+<h3><span class="section-number">18.3.3. </span>Character tables<a class="headerlink" href="#character-tables" title="Link to this heading">¶</a></h3>
+<p>Separate character tables are provided for the Hangul Jamo, Hangul
+Jamo Extended-A, and Hangul Jamo Extended-B blocks, as well as for other miscellaneous
+characters that are used in <code class="docutils literal notranslate"><span class="pre">&lt;hang&gt;</span></code> text runs:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="character-tables/character-tables-hangul.html#hangul-jamo-character-table"><span class="std std-ref">Hangul Jamo character table</span></a></p></li>
+<li><p><a class="reference internal" href="character-tables/character-tables-hangul.html#hangul-jamo-extended-a-character-table"><span class="std std-ref">Hangul Jamo Extended-A character table</span></a></p></li>
+<li><p><a class="reference internal" href="character-tables/character-tables-hangul.html#hangul-jamo-extended-b-character-table"><span class="std std-ref">Hangul Jamo Extended-B character table</span></a></p></li>
+<li><p><a class="reference internal" href="character-tables/character-tables-hangul.html#miscellaneous-character-table"><span class="std std-ref">Miscellaneous character table</span></a></p></li>
+</ul>
+<p>The Hangul Jamo block contains all of the Modern Korean jamo, the two
+jamo fillers, and the most common Old Korean jamo.</p>
+<p>The Hangul Jamo Extended-A block contains additional <code class="docutils literal notranslate"><span class="pre">L</span></code> (choseong)
+jamo for Old Korean. The Hangul Jamo Extended-B block contains
+additional <code class="docutils literal notranslate"><span class="pre">V</span></code> (jungseong) and <code class="docutils literal notranslate"><span class="pre">T</span></code> (jongseong) jamo for Old Korean.</p>
+<p>The Hangul Syllables block contains all of the valid permutations of the
+Modern Korean jamo. Each syllable codepoint can be classified by
+syllable type, either <code class="docutils literal notranslate"><span class="pre">LV</span></code> or <code class="docutils literal notranslate"><span class="pre">LVT</span></code>. These types are synonymous with
+the “Hangul Syllable Type” property in Unicode. Due to the size of the
+Hangul Syllables block, a full character table is not
+provided. However, a
+<a class="reference internal" href="character-tables/character-tables-hangul.html#hangul-syllables-character-table"><span class="std std-ref">summary</span></a>
+is included to show the ranges of <code class="docutils literal notranslate"><span class="pre">LV</span></code> and <code class="docutils literal notranslate"><span class="pre">LVT</span></code> syllables.</p>
+<p>Unicode also defines a Hangul Compatibility Jamo block that implements
+backward compatibility with a retired file-encoding format. Unless a
+software application is required to support specific stores of
+documents that are known to have used the older encoding, however, the
+shaping engine should not be expected to handle any text runs
+incorporating codepoints from this block.</p>
+<p>The tables list each codepoint along with its Unicode general
+category, its jamo type, and its composing behavior. The codepoint’s
+Unicode name and an example glyph are also provided.</p>
+<p>For example:</p>
+<table class="docutils align-default" id="id3">
+<caption><span class="caption-number">Table 18.3.1 </span><span class="caption-text">Example character table</span><a class="headerlink" href="#id3" title="Link to this table">¶</a></caption>
+<thead>
+<tr class="row-odd"><th class="head text-left"><p>Codepoint</p></th>
+<th class="head text-left"><p>Unicode category</p></th>
+<th class="head text-left"><p>Jamo type</p></th>
+<th class="head text-left"><p>Composing</p></th>
+<th class="head text-left"><p>Glyph</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+1109</span></code></p></td>
+<td class="text-left"><p>Letter</p></td>
+<td class="text-left"><p>L</p></td>
+<td class="text-left"><p>YES</p></td>
+<td class="text-left"><p>ᄉ Sios</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+1182</span></code></p></td>
+<td class="text-left"><p>Letter</p></td>
+<td class="text-left"><p>V</p></td>
+<td class="text-left"><p>NO</p></td>
+<td class="text-left"><p>ᆂ O-O</p></td>
+</tr>
+</tbody>
+</table>
+<p>Codepoints with no assigned meaning are
+designated as <em>unassigned</em> in the <em>Unicode category</em> column.</p>
+<p>In addition to general punctuation, runs of Hangul text may use
+punctuation marks from the CJK Symbols And Punctuation block.</p>
+<p>Of particular note are the single-dot tone mark (single-dot bangjeom)
+and double-dot tone mark (double-dot bangjeom), <code class="docutils literal notranslate"><span class="pre">U+302E</span></code> and
+<code class="docutils literal notranslate"><span class="pre">U+302F</span></code>. These non-spacing marks are common in Old Korean.</p>
+<p>Other important characters that may be encountered when shaping runs
+of Hangul text include the dotted-circle placeholder (<code class="docutils literal notranslate"><span class="pre">U+25CC</span></code>), the
+zero-width joiner (<code class="docutils literal notranslate"><span class="pre">U+200D</span></code>), and zero-width non-joiner (<code class="docutils literal notranslate"><span class="pre">U+200C</span></code>).</p>
+<p>The dotted-circle placeholder is frequently used when displaying a
+mark in isolation. Real-world text may also use other characters, such
+as hyphens or dashes, in a similar placeholder fashion; shaping
+engines should cope with this situation gracefully.</p>
+<p>The zero-width space (<code class="docutils literal notranslate"><span class="pre">U+200B</span></code>) or word joiner (<code class="docutils literal notranslate"><span class="pre">U+2060</span></code>) may be used
+between two jamo to prevent them from being conjoined into a
+syllable. The zero-width space allows a line break to happen between
+the jamo, while the word joiner prevents the jamo from being separated
+by a line break.</p>
+</section>
+</section>
+<section id="the-hang-shaping-model">
+<h2><span class="section-number">18.4. </span>The <code class="docutils literal notranslate"><span class="pre">&lt;hang&gt;</span></code> shaping model<a class="headerlink" href="#the-hang-shaping-model" title="Link to this heading">¶</a></h2>
+<p>Processing a run of <code class="docutils literal notranslate"><span class="pre">&lt;hang&gt;</span></code> text involves six top-level stages:</p>
+<ol class="arabic simple">
+<li><p>Identifying syllables</p></li>
+<li><p>Determining if the syllable can be composed into a Hangul Syllables codepoint</p></li>
+<li><p>Composing the syllable (if composition is possible)</p></li>
+<li><p>Fully decomposing the syllable (if composition is not possible)</p></li>
+<li><p>Shaping the fully decomposed syllable with <abbr title="Glyph Substitution table">GSUB</abbr> features</p></li>
+<li><p>Reordering tone marks</p></li>
+</ol>
+<section id="stage-1-identifying-syllables">
+<h3><span class="section-number">18.4.1. </span>Stage 1: Identifying syllables<a class="headerlink" href="#stage-1-identifying-syllables" title="Link to this heading">¶</a></h3>
+<p>The precomposed syllable codepoints in the Hangul Syllable block come in
+two forms: <code class="docutils literal notranslate"><span class="pre">LV</span></code> syllables (which represent an <code class="docutils literal notranslate"><span class="pre">L</span></code> jamo and a <code class="docutils literal notranslate"><span class="pre">V</span></code> jamo)
+and <code class="docutils literal notranslate"><span class="pre">LVT</span></code> syllables (which represent an <code class="docutils literal notranslate"><span class="pre">L</span></code> jamo, a <code class="docutils literal notranslate"><span class="pre">V</span></code> jamo, and a <code class="docutils literal notranslate"><span class="pre">T</span></code> jamo).</p>
+<p>A syllable consisting of a string of jamo must match either the
+sequence <samp>“<code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>”</samp> or the sequence <samp>“<code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>,<code class="docutils literal notranslate"><span class="pre">T</span></code>”</samp>.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">L</span></code>, <code class="docutils literal notranslate"><span class="pre">V</span></code>, and <code class="docutils literal notranslate"><span class="pre">T</span></code> components must be a single jamo each. In Modern
+Korean, all of the jamo must have a <code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code> of <code class="docutils literal notranslate"><span class="pre">YES</span></code>. In
+Old Korean, <code class="docutils literal notranslate"><span class="pre">YES</span></code> and <code class="docutils literal notranslate"><span class="pre">NO</span></code> are both acceptable for
+<code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code>.</p>
+<p>However, real-world input can also include syllables entered as a
+precomposed <code class="docutils literal notranslate"><span class="pre">LV</span></code> Hangul Syllable codepoint followed by a standalone
+<code class="docutils literal notranslate"><span class="pre">T</span></code> jamo.</p>
+<p>Syllables in a text run can therefore be identified with the following
+regular expression:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>    <span class="n">Slvt</span> <span class="o">|</span>  <span class="o">&lt;</span><span class="n">Slv</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">L</span><span class="o">|</span><span class="n">Lf</span><span class="o">&gt;+&lt;</span><span class="n">V</span><span class="o">|</span><span class="n">Vf</span><span class="o">&gt;&gt;</span> <span class="o">+</span> <span class="p">[</span><span class="n">T</span><span class="p">]</span>
+</pre></div>
+</div>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>L	  L jamo
+V	  V jamo
+T	  T jamo
+Lf	  L jamo filler
+Vf	  V jamo filler
+Slv	  Precomposed &quot;LV&quot; syllable
+Slvt	  Precomposed &quot;LVT&quot; syllable
+
+[ ]	  optional occurence of the enclosed expression
+&lt;|&gt;	  one of the options separated by the vertical bar
+</pre></div>
+</div>
+<p>The expression matches five possible syllable types:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Slvt</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Slv</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Slv</span></code>,<code class="docutils literal notranslate"><span class="pre">T</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>,<code class="docutils literal notranslate"><span class="pre">T</span></code></p></li>
+</ul>
+<p>Sequences of jamo that do not match the above expression should be
+treated as runs of standalone jamo letters.</p>
+<p>After the syllables have been identified, each of the subsequent
+shaping stages occurs on a per-syllable basis.</p>
+</section>
+<section id="stage-2-determining-if-the-syllable-can-be-composed-into-a-hangul-syllables-codepoint">
+<h3><span class="section-number">18.4.2. </span>Stage 2: Determining if the syllable can be composed into a Hangul Syllables codepoint<a class="headerlink" href="#stage-2-determining-if-the-syllable-can-be-composed-into-a-hangul-syllables-codepoint" title="Link to this heading">¶</a></h3>
+<section id="stage-2-step-1-fully-precomposed-syllables">
+<h4>Stage 2, step 1: Fully precomposed syllables<a class="headerlink" href="#stage-2-step-1-fully-precomposed-syllables" title="Link to this heading">¶</a></h4>
+<p>A precomposed <code class="docutils literal notranslate"><span class="pre">Slvt</span></code> or <code class="docutils literal notranslate"><span class="pre">Slv</span></code> syllable requires no shaping if the active
+font includes a glyph for the corresponding Hangul Syllables
+codepoint. If the glyph is present, the shaping engine can render it
+and proceed directly to stage six without further work. If the glyph
+is not present, the shaping engine must proceed to stage four.</p>
+<p>The other syllable types involve jamo, and each syllable must be
+examined to determine if it composes into a codepoint in the Hangul
+Syllables block.</p>
+</section>
+<section id="stage-2-step-2-partially-precomposed-syllables">
+<h4>Stage 2, step 2: Partially precomposed syllables<a class="headerlink" href="#stage-2-step-2-partially-precomposed-syllables" title="Link to this heading">¶</a></h4>
+<p>For <samp>“<code class="docutils literal notranslate"><span class="pre">Slv</span></code>,<code class="docutils literal notranslate"><span class="pre">T</span></code>”</samp> syllables, the <code class="docutils literal notranslate"><span class="pre">Slv</span></code> codepoint must first be
+decomposed into its constituent jamo. Then, the resulting
+<samp>“<code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>,<code class="docutils literal notranslate"><span class="pre">T</span></code>”</samp> syllable must be examined in the <a class="reference internal" href="#stage-2-step-3-fully-jamo-syllables">next
+step</a>.</p>
+<p>The decomposition of the <code class="docutils literal notranslate"><span class="pre">Slv</span></code> syllable is canonical, and uses the
+algorithm defined in <a class="reference internal" href="#stage-4-fully-decomposing-the-syllable-if-composition-is-not-possible">stage four</a>.</p>
+</section>
+<section id="stage-2-step-3-fully-jamo-syllables">
+<h4>Stage 2, step 3: Fully jamo syllables<a class="headerlink" href="#stage-2-step-3-fully-jamo-syllables" title="Link to this heading">¶</a></h4>
+<p>For <samp>“<code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>”</samp> and <samp>“<code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>,<code class="docutils literal notranslate"><span class="pre">T</span></code>”</samp> syllables, the <code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code> of
+each jamo must be examined.</p>
+<p>If all jamo in the syllable have <code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code> of <code class="docutils literal notranslate"><span class="pre">YES</span></code>, then
+the shaping engine should proceed to stage three and attempt to
+compose the jamo into the corresponding Hangul Syllables codepoint.</p>
+<p>If any of the jamo in the syllable have <code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code> of <code class="docutils literal notranslate"><span class="pre">NO</span></code>,
+then the shaping engine should proceed to stage five and shape the
+syllable using <abbr title="Glyph Substitution table">GSUB</abbr> features.</p>
+</section>
+</section>
+<section id="stage-3-composing-the-syllable-if-composition-is-possible">
+<h3><span class="section-number">18.4.3. </span>Stage 3: Composing the syllable (if composition is possible)<a class="headerlink" href="#stage-3-composing-the-syllable-if-composition-is-possible" title="Link to this heading">¶</a></h3>
+<p>Unicode defines a canonical algorithm for composing jamo into Hangul
+Syllables codepoints. The algorithm leverages the strict jamo-ordering
+of the syllables in the block to provide an algebraic method to
+determine the codepoint of a syllable using the codepoints of its
+constituent <code class="docutils literal notranslate"><span class="pre">L</span></code>, <code class="docutils literal notranslate"><span class="pre">V</span></code>, and (if needed) <code class="docutils literal notranslate"><span class="pre">T</span></code> jamo as input.</p>
+<p>The algorithm defines the following consonants:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>	<span class="n">SBase</span> <span class="o">=</span> <span class="n">AC00</span>
+	<span class="n">LBase</span> <span class="o">=</span> <span class="mi">1100</span>
+	<span class="n">VBase</span> <span class="o">=</span> <span class="mi">1161</span>
+	<span class="n">TBase</span> <span class="o">=</span> <span class="mi">11</span><span class="n">A7</span>
+	<span class="n">LCount</span> <span class="o">=</span> <span class="mi">19</span>
+	<span class="n">VCount</span> <span class="o">=</span> <span class="mi">21</span>
+	<span class="n">TCount</span> <span class="o">=</span> <span class="mi">28</span>
+	<span class="n">NCount</span> <span class="o">=</span> <span class="p">(</span><span class="n">VCount</span> <span class="o">*</span> <span class="n">TCount</span><span class="p">)</span> <span class="o">=</span> <span class="mi">588</span>
+	<span class="n">SCount</span> <span class="o">=</span> <span class="p">(</span><span class="n">LCount</span> <span class="o">*</span> <span class="n">NCount</span><span class="p">)</span> <span class="o">=</span> <span class="mi">11172</span>
+</pre></div>
+</div>
+<p>For a jamo sequence <samp>“<code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>”</samp>, where both <code class="docutils literal notranslate"><span class="pre">L</span></code> and <code class="docutils literal notranslate"><span class="pre">V</span></code> are of
+<code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code> <code class="docutils literal notranslate"><span class="pre">YES</span></code>, the composed syllable codepoint is found
+by computing:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>	<span class="n">LIndex</span> <span class="o">=</span> <span class="n">L</span> <span class="o">-</span> <span class="n">LBase</span>
+	<span class="n">VIndex</span> <span class="o">=</span> <span class="n">V</span> <span class="o">-</span> <span class="n">VBase</span>
+	<span class="n">LVIndex</span> <span class="o">=</span> <span class="n">LIndex</span> <span class="o">*</span> <span class="n">NCount</span> <span class="o">+</span> <span class="n">VIndex</span> <span class="o">*</span> <span class="n">TCount</span>
+	<span class="n">Slv</span> <span class="o">=</span> <span class="n">SBase</span> <span class="o">+</span> <span class="n">LVIndex</span>
+</pre></div>
+</div>
+<p>Similarly, for a jamo sequence <samp>“<code class="docutils literal notranslate"><span class="pre">L</span></code>,<code class="docutils literal notranslate"><span class="pre">V</span></code>,<code class="docutils literal notranslate"><span class="pre">T</span></code>”</samp>, where <code class="docutils literal notranslate"><span class="pre">L</span></code>, <code class="docutils literal notranslate"><span class="pre">V</span></code>, and <code class="docutils literal notranslate"><span class="pre">T</span></code>
+are all of <code class="docutils literal notranslate"><span class="pre">COMPOSING_BEHAVIOR</span></code> <code class="docutils literal notranslate"><span class="pre">YES</span></code>, the composed syllable codepoint
+is found by computing:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>	<span class="n">LIndex</span> <span class="o">=</span> <span class="n">L</span> <span class="o">-</span> <span class="n">LBase</span>
+	<span class="n">VIndex</span> <span class="o">=</span> <span class="n">V</span> <span class="o">-</span> <span class="n">VBase</span>
+	<span class="n">TIndex</span> <span class="o">=</span> <span class="n">T</span> <span class="o">-</span> <span class="n">TBase</span>
+	<span class="n">LVIndex</span> <span class="o">=</span> <span class="n">LIndex</span> <span class="o">*</span> <span class="n">NCount</span> <span class="o">+</span> <span class="n">VIndex</span> <span class="o">*</span> <span class="n">TCount</span>
+	<span class="n">Slvt</span> <span class="o">=</span> <span class="n">SBase</span> <span class="o">+</span> <span class="n">LVIndex</span> <span class="o">+</span> <span class="n">TIndex</span>
+</pre></div>
+</div>
+<p>After the syllable codepoint has been found, the shaping engine must
+verify that the codepoint’s glyph exists in the active font. If the
+glyph is present, the shaping engine must substitute the input jamo
+sequence with the glyph. The shaping engine can then proceed to stage
+six.</p>
+<p>If the needed codepoint is missing, the shaping engine should perform
+no substitution and must proceed to stage five with the original <code class="docutils literal notranslate"><span class="pre">L</span></code>,
+<code class="docutils literal notranslate"><span class="pre">V</span></code>, and (if used) <code class="docutils literal notranslate"><span class="pre">T</span></code> jamo.</p>
+<figure class="align-default" id="id4">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hangul-compose" viewbox="0 0 743.92578125 202.578125" class="shaping-demo inline-svg greyscale-svg" names="hangul-compose" uri="images/hangul/hangul-compose.svg" alt="Syllable composition" title="Syllable composition">
+  <defs><g>
+<symbol overflow="visible" id="hangul-compose:id0:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-compose:id0:glyph0-1">
+<path style="stroke:none;" d="M 27.171875 -54.125 C 27.71875 -54.78125 28.265625 -55.65625 28.59375 -57.09375 L 50.15625 -57.203125 C 50.59375 -57.640625 51.046875 -58.734375 51.046875 -59.84375 C 51.046875 -60.5 50.8125 -60.828125 50.265625 -60.9375 L 48.40625 -61.59375 C 49.0625 -63.140625 49.28125 -64.90625 49.28125 -66.984375 L 49.5 -80.734375 L 49.71875 -84.265625 C 49.71875 -85.140625 49.390625 -85.578125 48.625 -86.015625 C 46.421875 -86.796875 42.453125 -87.5625 39.59375 -87.78125 C 38.9375 -87.890625 38.609375 -87.671875 38.5 -87.34375 L 37.625 -84.8125 C 39.8125 -84.046875 41.6875 -82.828125 42.796875 -81.625 L 42.796875 -75.453125 L 29.265625 -75.234375 L 29.375 -77.984375 L 29.484375 -81.734375 C 29.484375 -82.609375 29.15625 -83.046875 28.375 -83.375 C 26.0625 -84.15625 22.21875 -84.703125 19.359375 -84.921875 C 18.59375 -84.921875 18.375 -84.703125 18.15625 -84.375 L 17.265625 -81.84375 C 19.46875 -81.1875 21.453125 -80.078125 22.4375 -78.984375 L 22.875 -59.296875 C 22.875 -57.640625 23.09375 -55.546875 23.765625 -54.125 Z M 42.796875 -61.59375 L 29.046875 -61.484375 L 29.265625 -71.171875 L 42.796875 -71.390625 Z M 85.359375 -84.046875 L 85.578125 -87.671875 C 85.578125 -88.4375 85.25 -88.875 84.484375 -89.3125 C 82.390625 -90.09375 78.4375 -90.859375 75.5625 -91.078125 C 74.90625 -91.078125 74.578125 -90.96875 74.46875 -90.640625 L 73.59375 -88.109375 C 75.796875 -87.34375 77.65625 -86.125 78.765625 -84.921875 L 78.765625 -77 L 64.453125 -76.78125 L 64.5625 -81.515625 L 64.796875 -85.25 C 64.796875 -86.125 64.453125 -86.5625 63.6875 -86.90625 C 61.484375 -87.671875 57.75 -88.21875 55 -88.328125 C 54.234375 -88.328125 54.015625 -88.21875 53.796875 -87.890625 L 52.90625 -85.359375 C 55.109375 -84.703125 56.875 -83.59375 57.859375 -82.5 L 58.296875 -60.171875 C 58.296875 -58.40625 58.515625 -56.3125 59.0625 -55 L 62.484375 -55 C 63.03125 -55.65625 63.6875 -56.65625 64.015625 -58.078125 L 85.6875 -58.296875 C 86.234375 -58.734375 86.5625 -59.84375 86.5625 -60.9375 C 86.5625 -61.484375 86.34375 -61.8125 85.796875 -62.046875 L 84.265625 -62.484375 C 84.8125 -64.125 85.140625 -66 85.140625 -68.09375 Z M 64.453125 -72.703125 L 78.765625 -72.9375 L 78.765625 -62.703125 L 64.34375 -62.59375 Z M 64.453125 -72.703125 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-compose:id0:glyph0-2">
+<path style="stroke:none;" d=""></path>
+</symbol>
+<symbol overflow="visible" id="hangul-compose:id0:glyph0-3">
+<path style="stroke:none;" d="M 88.328125 -28.484375 C 89.875 -32.34375 90.859375 -39.15625 90.859375 -45.65625 L 90.859375 -83.15625 L 91.078125 -88.765625 C 91.1875 -89.875 90.75 -90.640625 89.875 -90.96875 C 86.796875 -92.296875 79.96875 -93.71875 76.125 -93.828125 C 75.234375 -93.828125 74.90625 -93.609375 74.796875 -93.28125 L 73.921875 -90.53125 C 77.765625 -89.3125 81.1875 -87.34375 83.046875 -85.140625 L 83.046875 -49.9375 C 66.21875 -46.75 33 -43.890625 15.734375 -43.5625 C 12.203125 -43.453125 7.921875 -43.78125 4.515625 -44.546875 L 3.734375 -43.015625 C 3.515625 -42.5625 3.625 -42.234375 4.0625 -41.90625 C 6.8125 -39.59375 10.671875 -37.296875 14.296875 -35.640625 C 16.28125 -36.515625 20.5625 -37.40625 22.875 -37.625 C 26.84375 -37.84375 31.5625 -38.28125 36.84375 -38.828125 L 36.84375 -37.40625 C 36.84375 -34.203125 37.0625 -29.375 37.625 -26.296875 L 42.5625 -26.296875 C 43.78125 -29.484375 44.65625 -35.09375 44.65625 -39.15625 L 44.65625 -39.703125 C 58.734375 -41.359375 74.03125 -43.78125 83.046875 -45.765625 L 83.046875 -43.234375 C 83.046875 -39.15625 83.265625 -32.015625 83.703125 -28.484375 Z M 88.328125 -28.484375 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-compose:id0:glyph0-4">
+<path style="stroke:none;" d="M 79.96875 -18.59375 L 80.296875 -22.875 C 80.296875 -23.765625 80.078125 -24.203125 79.203125 -24.640625 C 76.453125 -25.734375 70.625 -26.734375 67.09375 -26.953125 C 66.328125 -26.953125 66 -26.84375 65.890625 -26.40625 L 65.015625 -23.765625 C 67.984375 -22.765625 70.625 -21.34375 72.265625 -19.90625 L 72.265625 -12.203125 L 36.734375 -11.875 L 36.84375 -16.390625 L 36.953125 -20.796875 C 36.953125 -21.78125 36.625 -22.21875 35.75 -22.546875 C 33.109375 -23.3125 27.5 -23.875 24.203125 -23.875 C 23.4375 -23.875 23.09375 -23.65625 22.984375 -23.3125 L 22.328125 -20.90625 C 24.96875 -20.234375 27.609375 -18.8125 29.046875 -17.484375 L 29.59375 5.609375 C 29.59375 7.375 29.921875 9.90625 30.46875 11.4375 L 34.546875 11.4375 C 35.203125 10.671875 35.859375 9.5625 36.1875 8.03125 L 80.84375 7.703125 C 81.40625 7.265625 81.84375 6.15625 81.84375 4.953125 C 81.84375 4.296875 81.625 4.0625 81.0625 3.84375 L 78.875 2.96875 C 79.421875 0.4375 79.75 -3.078125 79.75 -6.046875 Z M 72.265625 -7.703125 L 72.265625 3.078125 L 36.515625 3.296875 L 36.734375 -7.375 Z M 72.265625 -7.703125 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-compose:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-compose:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-compose:id2:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-compose:id2:glyph0-1">
+<path style="stroke:none;" d="M 52.25 -57.09375 L 52.359375 -67.546875 L 64.234375 -67.875 L 64.234375 -57.203125 Z M 71.28125 -80.953125 L 71.390625 -84.59375 C 71.390625 -85.46875 71.171875 -85.90625 70.296875 -86.234375 C 68.3125 -87.015625 64.90625 -87.78125 62.375 -88 C 61.59375 -88.109375 61.265625 -87.890625 61.15625 -87.5625 L 60.28125 -85.140625 C 62.15625 -84.265625 63.6875 -83.15625 64.234375 -82.171875 L 64.234375 -72.8125 L 52.46875 -72.484375 L 52.578125 -78.875 L 52.6875 -82.609375 C 52.6875 -83.59375 52.359375 -84.046875 51.59375 -84.375 C 49.609375 -85.03125 46.3125 -85.796875 43.78125 -85.90625 C 43.125 -85.90625 42.796875 -85.796875 42.6875 -85.359375 L 41.6875 -82.71875 C 43.671875 -82.0625 45.203125 -81.0625 45.875 -80.078125 L 46.203125 -54.671875 C 46.203125 -52.90625 46.53125 -50.703125 47.078125 -49.28125 L 50.484375 -49.28125 C 51.046875 -49.9375 51.59375 -50.8125 51.921875 -52.140625 L 70.84375 -52.359375 C 71.5 -52.90625 71.828125 -54.015625 71.828125 -55.21875 C 71.828125 -55.65625 71.71875 -56.09375 71.171875 -56.4375 L 69.84375 -56.984375 C 70.40625 -59.515625 70.734375 -63.25 70.734375 -66.328125 Z M 38.71875 -76.234375 L 38.9375 -79.75 C 38.9375 -80.515625 38.71875 -81.0625 37.953125 -81.40625 C 35.96875 -82.28125 32.671875 -83.046875 30.140625 -83.265625 C 29.484375 -83.265625 29.15625 -83.15625 29.046875 -82.828125 L 28.15625 -80.296875 C 30.140625 -79.421875 31.6875 -78.4375 32.453125 -77.4375 L 32.453125 -70.296875 L 20.453125 -69.953125 L 20.453125 -73.59375 L 20.5625 -77.4375 C 20.6875 -78.3125 20.34375 -78.765625 19.46875 -79.09375 C 17.484375 -79.75 13.859375 -80.40625 11.109375 -80.515625 C 10.34375 -80.625 10.015625 -80.40625 9.90625 -80.078125 L 9.125 -77.328125 C 11.21875 -76.671875 12.875 -75.796875 13.859375 -74.6875 L 14.296875 -52.90625 C 14.296875 -51.15625 14.625 -48.953125 15.0625 -47.515625 L 18.59375 -47.515625 C 19.140625 -48.1875 19.6875 -49.171875 20.015625 -50.484375 L 38.390625 -50.703125 C 38.9375 -51.265625 39.375 -52.25 39.375 -53.453125 C 39.375 -54.015625 39.265625 -54.34375 38.609375 -54.671875 L 37.515625 -55.21875 C 38.0625 -57.640625 38.5 -61.265625 38.5 -64.125 Z M 20.453125 -65.015625 L 32.453125 -65.34375 L 32.453125 -55.4375 L 20.34375 -55.328125 Z M 87.453125 -27.171875 C 88.984375 -31.234375 89.984375 -38.171875 89.984375 -44.765625 L 89.984375 -83.265625 L 90.203125 -88.765625 C 90.3125 -89.875 89.875 -90.640625 88.984375 -91.078125 C 85.90625 -92.296875 79.203125 -93.71875 75.34375 -93.828125 C 74.46875 -93.828125 74.25 -93.609375 74.140625 -93.28125 L 73.265625 -90.640625 C 77 -89.3125 80.40625 -87.453125 82.390625 -85.140625 L 82.390625 -46.859375 C 65.34375 -43.78125 33 -41.25 16.171875 -41.03125 C 12.4375 -41.03125 7.921875 -41.25 4.1875 -42.015625 L 3.515625 -40.703125 C 3.296875 -40.15625 3.40625 -39.8125 3.84375 -39.484375 C 6.8125 -37.0625 10.78125 -34.65625 14.625 -33 C 16.609375 -33.765625 21.015625 -34.765625 23.09375 -34.875 C 27.28125 -35.09375 32.453125 -35.640625 38.0625 -36.1875 L 38.0625 -32.453125 C 38.0625 -29.265625 38.28125 -24.421875 38.71875 -21.34375 L 43.78125 -21.34375 C 44.984375 -24.640625 45.875 -30.140625 45.875 -34.203125 L 45.875 -37.0625 C 59.1875 -38.71875 73.484375 -40.921875 82.390625 -42.90625 L 82.390625 -42.34375 C 82.390625 -38.171875 82.5 -30.6875 82.9375 -27.171875 Z M 89.4375 -17.8125 L 89.765625 -22.109375 C 89.765625 -22.875 89.546875 -23.4375 88.65625 -23.765625 C 85.90625 -24.859375 79.96875 -25.953125 76.34375 -26.1875 C 75.5625 -26.1875 75.234375 -25.953125 75.125 -25.625 L 74.25 -22.984375 C 77.21875 -22 79.96875 -20.5625 81.515625 -19.03125 L 81.515625 -10.78125 L 45.546875 -10.453125 L 45.546875 -13.53125 L 45.65625 -18.046875 C 45.65625 -18.921875 45.4375 -19.46875 44.546875 -19.6875 C 41.90625 -20.453125 36.078125 -21.125 32.671875 -21.125 C 31.90625 -21.125 31.453125 -20.90625 31.34375 -20.5625 L 30.6875 -18.046875 C 33.328125 -17.375 35.96875 -15.953125 37.40625 -14.625 L 38.0625 6.484375 C 38.0625 8.25 38.390625 10.78125 39.046875 12.4375 L 43.234375 12.4375 C 43.890625 11.765625 44.4375 10.671875 44.875 9.234375 C 54.5625 9.125 80.953125 8.90625 90.421875 9.015625 C 90.96875 8.46875 91.40625 7.265625 91.40625 5.9375 C 91.40625 5.28125 91.078125 5.0625 90.640625 4.734375 L 88.4375 3.953125 C 88.984375 1.546875 89.4375 -2.3125 89.4375 -5.171875 Z M 81.515625 -5.828125 L 81.515625 4.0625 L 45.3125 4.296875 L 45.4375 -5.609375 Z M 81.515625 -5.828125 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hangul-compose:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,0.0)"><g id="hangul-compose:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c0" href="#hangul-compose:id0:glyph0-1"></use>
+  <use x="122.265625" y="128.609375" class="z" href="#hangul-compose:id0:glyph0-2"></use>
+  <use x="122.265625" y="128.609375" class="c1" href="#hangul-compose:id0:glyph0-3"></use>
+  <use x="228.53125" y="128.609375" class="z" href="#hangul-compose:id0:glyph0-2"></use>
+  <use x="228.53125" y="128.609375" class="c2" href="#hangul-compose:id0:glyph0-4"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-compose:id1:id1" transform="matrix(1.25,0,0,1.25,438.49609375,0.5859375)"><g id="hangul-compose:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hangul-compose:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-compose:id2:id2" transform="matrix(1.25,0,0,1.25,571.09375,0.0)"><g id="hangul-compose:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c3" href="#hangul-compose:id2:glyph0-1"></use>
+</g>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 18.4.1 </span><span class="caption-text">Syllable composition</span><a class="headerlink" href="#id4" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hangul-compose" onclick='toggleColor("hangul-compose")'>Toggle cluster colors</button></section>
+<section id="stage-4-fully-decomposing-the-syllable-if-composition-is-not-possible">
+<h3><span class="section-number">18.4.4. </span>Stage 4: Fully decomposing the syllable (if composition is not possible)<a class="headerlink" href="#stage-4-fully-decomposing-the-syllable-if-composition-is-not-possible" title="Link to this heading">¶</a></h3>
+<p>An <samp>“<code class="docutils literal notranslate"><span class="pre">Slv</span></code>,<code class="docutils literal notranslate"><span class="pre">T</span></code>”</samp> syllable that does not compose into a Hangul Syllables
+codepoint or that composes into a Hangul Syllables codepoint which is
+missing in the active font must be fully decomposed into jamo.</p>
+<p>Similarly, a precomposed <code class="docutils literal notranslate"><span class="pre">Slvt</span></code> or <code class="docutils literal notranslate"><span class="pre">Slv</span></code> syllable requires no shaping
+if the active font includes a glyph for the corresponding Hangul
+Syllables codepoint. If the corresponding codepoint is missing in the
+active font, however, the syllable must be fully decomposed into jamo.</p>
+<p>Unicode defines a canonical algorithm for decomposing Hangul Syllables
+codepoints into constituent jamo. The algorithm leverages the strict
+jamo-ordering of the syllables in the block to provide an algebraic method to
+determine the codepoints of a syllable’s <code class="docutils literal notranslate"><span class="pre">L</span></code>, <code class="docutils literal notranslate"><span class="pre">V</span></code>, and (if needed) <code class="docutils literal notranslate"><span class="pre">T</span></code>
+jamo from the syllable’s codepoint.</p>
+<p>The algorithm defines the following consonants:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>	<span class="n">SBase</span> <span class="o">=</span> <span class="n">AC00</span>
+	<span class="n">LBase</span> <span class="o">=</span> <span class="mi">1100</span>
+	<span class="n">VBase</span> <span class="o">=</span> <span class="mi">1161</span>
+	<span class="n">TBase</span> <span class="o">=</span> <span class="mi">11</span><span class="n">A7</span>
+	<span class="n">LCount</span> <span class="o">=</span> <span class="mi">19</span>
+	<span class="n">VCount</span> <span class="o">=</span> <span class="mi">21</span>
+	<span class="n">TCount</span> <span class="o">=</span> <span class="mi">28</span>
+	<span class="n">NCount</span> <span class="o">=</span> <span class="p">(</span><span class="n">VCount</span> <span class="o">*</span> <span class="n">TCount</span><span class="p">)</span> <span class="o">=</span> <span class="mi">588</span>
+	<span class="n">SCount</span> <span class="o">=</span> <span class="p">(</span><span class="n">LCount</span> <span class="o">*</span> <span class="n">NCount</span><span class="p">)</span> <span class="o">=</span> <span class="mi">11172</span>
+</pre></div>
+</div>
+<p>For a syllable codepoint S, the codepoints of the constituent <code class="docutils literal notranslate"><span class="pre">L</span></code>,
+<code class="docutils literal notranslate"><span class="pre">V</span></code>, and <code class="docutils literal notranslate"><span class="pre">T</span></code> jamo are found by computing:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>	<span class="n">SIndex</span> <span class="o">=</span> <span class="n">S</span> <span class="o">-</span> <span class="n">SBase</span>
+	<span class="n">LIndex</span> <span class="o">=</span> <span class="n">SIndex</span> <span class="n">div</span> <span class="n">NCount</span>
+	<span class="n">VIndex</span> <span class="o">=</span> <span class="p">(</span><span class="n">SIndex</span> <span class="n">mod</span> <span class="n">NCount</span><span class="p">)</span> <span class="n">div</span> <span class="n">TCount</span>
+	<span class="n">TIndex</span> <span class="o">=</span> <span class="n">SIndex</span> <span class="n">mod</span> <span class="n">TCount</span>
+	<span class="n">L</span> <span class="o">=</span> <span class="n">LBase</span> <span class="o">+</span> <span class="n">LIndex</span>
+	<span class="n">V</span> <span class="o">=</span> <span class="n">VBase</span> <span class="o">+</span> <span class="n">VIndex</span>
+	<span class="n">T</span> <span class="o">=</span> <span class="n">TBase</span> <span class="o">+</span> <span class="n">TIndex</span> <span class="k">if</span> <span class="n">TIndex</span> <span class="o">&gt;</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">TIndex</span></code> = 0, then the syllable has no <code class="docutils literal notranslate"><span class="pre">T</span></code> jamo in the
+trailing-consonant (jongseong) position.</p>
+<p>With the syllable decomposed, the shaping engine can proceed to stage
+five with the <code class="docutils literal notranslate"><span class="pre">L</span></code>, <code class="docutils literal notranslate"><span class="pre">V</span></code>, and (if used) <code class="docutils literal notranslate"><span class="pre">T</span></code> jamo.</p>
+<figure class="align-default" id="id5">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hangul-decompose" viewbox="0 0 743.92578125 202.578125" class="shaping-demo inline-svg greyscale-svg" names="hangul-decompose" uri="images/hangul/hangul-decompose.svg" alt="Syllable decomposition" title="Syllable decomposition">
+  <defs><g>
+<symbol overflow="visible" id="hangul-decompose:id0:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-decompose:id0:glyph0-1">
+<path style="stroke:none;" d="M 81.734375 -81.40625 L 83.046875 -85.140625 C 83.265625 -85.796875 83.265625 -86.234375 82.828125 -86.453125 C 81.84375 -87.125 79.3125 -88.4375 77.984375 -88.875 C 77.4375 -89.203125 76.671875 -89.203125 76.234375 -88.875 L 72.59375 -86.90625 C 63.359375 -86.453125 43.5625 -86.34375 34.4375 -86.34375 C 31.34375 -87.015625 25.1875 -87.5625 21.890625 -87.5625 C 21.234375 -87.5625 20.90625 -87.34375 20.796875 -87.015625 L 20.234375 -84.484375 C 22.4375 -83.9375 24.96875 -82.609375 26.1875 -81.40625 L 28.15625 -58.078125 C 28.265625 -56.3125 28.703125 -54.34375 29.265625 -52.90625 L 33.546875 -52.90625 C 34.203125 -53.796875 34.65625 -54.78125 34.875 -56.09375 L 80.296875 -56.65625 C 80.953125 -57.203125 81.625 -58.625 81.625 -60.0625 C 81.625 -60.609375 81.296875 -61.046875 80.84375 -61.265625 L 78.984375 -62.046875 C 80.296875 -68.3125 81.296875 -75.234375 81.734375 -81.40625 Z M 34.65625 -81.515625 C 46.421875 -81.734375 61.265625 -81.84375 73.265625 -81.84375 L 72.484375 -62.265625 L 70.1875 -61.59375 C 62.265625 -61.15625 44.984375 -60.828125 35.09375 -60.9375 Z M 80.625 -7.921875 C 81.0625 -8.359375 81.625 -9.453125 81.625 -10.5625 C 81.625 -11 81.515625 -11.328125 81.0625 -11.546875 L 79.09375 -12.4375 C 79.96875 -14.953125 80.953125 -20.125 81.296875 -23.203125 L 82.609375 -25.734375 C 82.828125 -26.40625 82.828125 -26.84375 82.28125 -27.171875 C 81.40625 -27.828125 79.203125 -28.9375 78.09375 -29.375 C 77.4375 -29.59375 76.78125 -29.59375 76.34375 -29.375 L 73.15625 -27.828125 L 69.84375 -27.71875 C 70.734375 -30.796875 71.390625 -35.09375 71.390625 -38.390625 L 71.390625 -41.359375 L 88.875 -41.46875 C 92.1875 -41.46875 98.671875 -41.25 101.640625 -40.921875 C 102.625 -41.46875 103.953125 -43.015625 103.953125 -44.875 C 103.953125 -45.765625 103.296875 -46.421875 102.515625 -46.640625 C 99.984375 -47.515625 94.15625 -48.1875 90.203125 -48.296875 L 86.234375 -46.640625 C 78.546875 -46.09375 22.546875 -45.4375 15.84375 -45.546875 C 12.4375 -45.546875 7.265625 -45.984375 3.625 -46.640625 L 2.859375 -45.09375 C 2.75 -44.765625 2.859375 -44.4375 3.1875 -44.109375 C 5.9375 -41.90625 10.015625 -39.703125 13.96875 -38.5 C 16.609375 -39.375 22.21875 -40.375 24.96875 -40.59375 L 35.859375 -40.921875 L 35.859375 -35.75 C 35.859375 -33.328125 35.96875 -30.03125 36.296875 -27.28125 L 31.125 -27.28125 C 28.375 -27.28125 24.203125 -27.609375 21.34375 -28.15625 L 20.6875 -27.0625 C 20.5625 -26.625 20.5625 -26.296875 21.015625 -25.953125 C 23.3125 -24.203125 26.40625 -22.4375 29.703125 -21.34375 C 32.34375 -22.109375 36.40625 -22.875 38.5 -22.984375 C 43.125 -23.203125 65.5625 -23.4375 72.703125 -23.3125 C 72.8125 -21.125 72.703125 -15.0625 72.375 -12.65625 L 70.515625 -12.09375 C 66.21875 -11.875 42.90625 -11.65625 35.09375 -11.65625 C 32.34375 -11.984375 25.078125 -12.203125 22.109375 -12.203125 C 21.453125 -12.203125 21.125 -11.984375 21.015625 -11.65625 L 20.5625 -9.5625 C 23.09375 -9.125 25.40625 -8.140625 26.84375 -6.8125 L 26.84375 2.53125 C 26.84375 7.484375 28.703125 9.453125 34.65625 9.453125 L 85.6875 9.234375 C 86.234375 9.234375 86.796875 9.015625 87.125 8.6875 C 87.671875 8.140625 88.328125 6.8125 88.328125 4.953125 C 88.328125 4.1875 87.78125 3.625 86.90625 3.515625 C 84.8125 3.078125 80.296875 2.75 77.328125 2.75 L 74.03125 4.40625 C 67.4375 4.734375 45.65625 4.84375 36.84375 4.734375 C 35.421875 4.734375 34.875 4.1875 34.875 2.75 L 34.875 -7.375 Z M 63.796875 -41.25 L 63.796875 -36.84375 C 63.796875 -34.203125 63.90625 -30.46875 64.234375 -27.609375 L 42.125 -27.390625 C 43.015625 -30.359375 43.453125 -34.3125 43.453125 -37.296875 L 43.453125 -41.03125 Z M 63.796875 -41.25 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-decompose:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-decompose:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-decompose:id2:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-decompose:id2:glyph0-1">
+<path style="stroke:none;" d="M 79.75 -58.515625 C 80.40625 -59.1875 81.0625 -60.5 81.0625 -61.9375 C 81.0625 -62.484375 80.734375 -62.8125 80.296875 -63.03125 L 78.09375 -64.015625 C 79.3125 -69.296875 80.296875 -75.234375 80.734375 -80.40625 L 82.0625 -84.15625 C 82.28125 -84.703125 82.28125 -85.25 81.84375 -85.46875 C 80.84375 -86.125 78.3125 -87.34375 77 -87.890625 C 76.453125 -88.109375 75.6875 -88.109375 75.234375 -87.890625 L 71.609375 -85.90625 C 63.03125 -85.46875 44.4375 -85.359375 35.640625 -85.359375 C 32.453125 -85.90625 26.40625 -86.5625 23.09375 -86.5625 C 22.328125 -86.5625 22.109375 -86.34375 22 -86.015625 L 21.453125 -83.484375 C 23.65625 -82.828125 26.0625 -81.515625 27.28125 -80.296875 L 29.046875 -59.40625 C 29.265625 -57.421875 29.59375 -55.4375 30.25 -54.234375 L 34.65625 -54.234375 C 35.421875 -55.21875 35.859375 -56.3125 35.96875 -57.96875 Z M 35.859375 -80.625 C 47.078125 -80.84375 60.9375 -80.953125 72.265625 -80.953125 L 71.609375 -63.796875 L 69.953125 -63.359375 C 62.375 -62.921875 46.421875 -62.59375 36.1875 -62.703125 Z M 35.859375 -80.625 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-decompose:id2:glyph0-2">
+<path style="stroke:none;" d=""></path>
+</symbol>
+<symbol overflow="visible" id="hangul-decompose:id2:glyph0-3">
+<path style="stroke:none;" d="M 86.234375 -46.421875 C 78.546875 -45.984375 22.546875 -45.203125 15.84375 -45.3125 C 12.4375 -45.4375 7.265625 -45.875 3.625 -46.53125 L 2.859375 -44.875 C 2.75 -44.546875 2.859375 -44.21875 3.1875 -44 C 5.9375 -41.6875 10.015625 -39.375 13.96875 -38.171875 C 16.609375 -39.046875 22.21875 -40.046875 24.96875 -40.265625 L 34.09375 -40.59375 L 34.09375 -34.203125 C 34.09375 -31.34375 34.3125 -27.171875 34.765625 -24.3125 L 39.59375 -24.3125 C 40.921875 -27.171875 41.6875 -32.015625 41.6875 -35.75 L 41.6875 -40.703125 L 65.453125 -41.03125 L 65.453125 -34.765625 C 65.453125 -31.90625 65.5625 -27.71875 66.109375 -24.859375 L 70.953125 -24.859375 C 72.15625 -27.71875 73.046875 -32.5625 73.046875 -36.296875 L 73.046875 -41.03125 L 88.875 -41.140625 C 92.1875 -41.140625 98.671875 -40.921875 101.640625 -40.59375 C 102.625 -41.140625 103.953125 -42.796875 103.953125 -44.65625 C 103.953125 -45.65625 103.296875 -46.203125 102.515625 -46.53125 C 99.984375 -47.40625 94.15625 -48.0625 90.203125 -48.1875 Z M 86.234375 -46.421875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-decompose:id2:glyph0-4">
+<path style="stroke:none;" d="M 80.1875 -5.171875 C 80.515625 -5.609375 80.953125 -6.59375 80.953125 -7.703125 C 80.953125 -8.140625 80.84375 -8.46875 80.40625 -8.6875 L 78.3125 -9.6875 C 79.203125 -11.65625 80.078125 -15.625 80.40625 -17.8125 L 71.71875 -18.15625 L 80.40625 -17.8125 L 81.625 -20.34375 C 81.953125 -21.015625 81.84375 -21.5625 81.40625 -21.890625 C 80.515625 -22.4375 78.3125 -23.546875 77.21875 -23.984375 C 76.5625 -24.3125 75.90625 -24.3125 75.34375 -23.984375 L 72.15625 -22.4375 C 65.125 -22.21875 38.171875 -22 32.015625 -22 C 29.265625 -22 25.1875 -22.328125 22.328125 -22.984375 L 21.671875 -21.78125 C 21.5625 -21.453125 21.5625 -21.125 22 -20.6875 C 24.3125 -19.03125 27.390625 -17.375 30.6875 -16.28125 C 33.21875 -17.046875 37.296875 -17.8125 39.375 -17.9375 C 43.890625 -18.15625 65.015625 -18.265625 71.71875 -18.15625 C 71.828125 -16.171875 71.71875 -11.4375 71.5 -9.5625 L 70.40625 -9.234375 C 66.109375 -9.015625 43.234375 -8.90625 35.96875 -8.90625 C 33.109375 -9.234375 25.953125 -9.453125 22.984375 -9.453125 C 22.328125 -9.453125 21.890625 -9.234375 21.78125 -8.90625 L 21.453125 -6.8125 C 23.875 -6.375 26.1875 -5.390625 27.609375 -4.0625 L 27.609375 2.421875 C 27.609375 7.265625 29.703125 9.234375 36.40625 9.234375 L 84.8125 8.796875 C 85.359375 8.796875 85.796875 8.6875 86.125 8.359375 C 86.5625 7.8125 87.234375 6.484375 87.234375 4.734375 C 87.234375 3.953125 86.6875 3.40625 85.90625 3.296875 C 83.9375 2.75 79.3125 2.53125 76.34375 2.53125 L 73.15625 4.1875 C 66.765625 4.625 45.4375 4.84375 37.625 4.734375 C 36.296875 4.734375 35.75 4.1875 35.75 2.75 L 35.75 -4.84375 Z M 80.1875 -5.171875 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hangul-decompose:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,0.0)"><g id="hangul-decompose:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c0" href="#hangul-decompose:id0:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-decompose:id1:id1" transform="matrix(1.25,0,0,1.25,172.83203125,0.5859375)"><g id="hangul-decompose:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hangul-decompose:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-decompose:id2:id2" transform="matrix(1.25,0,0,1.25,305.4296875,0.0)"><g id="hangul-decompose:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c1" href="#hangul-decompose:id2:glyph0-1"></use>
+  <use x="122.265625" y="128.609375" class="z" href="#hangul-decompose:id2:glyph0-2"></use>
+  <use x="122.265625" y="128.609375" class="c2" href="#hangul-decompose:id2:glyph0-3"></use>
+  <use x="228.53125" y="128.609375" class="z" href="#hangul-decompose:id2:glyph0-2"></use>
+  <use x="228.53125" y="128.609375" class="c3" href="#hangul-decompose:id2:glyph0-4"></use>
+</g>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 18.4.2 </span><span class="caption-text">Syllable decomposition</span><a class="headerlink" href="#id5" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hangul-decompose" onclick='toggleColor("hangul-decompose")'>Toggle cluster colors</button></section>
+<section id="stage-5-shaping-the-fully-decomposed-syllable-with-gsub-features">
+<h3><span class="section-number">18.4.5. </span>Stage 5: Shaping the fully decomposed syllable with <abbr>GSUB</abbr> features<a class="headerlink" href="#stage-5-shaping-the-fully-decomposed-syllable-with-gsub-features" title="Link to this heading">¶</a></h3>
+<p>With the syllable fully decomposed into a sequence of jamo, the next
+stage applies mandatory substitution features using rules in the
+font’s <abbr title="Glyph Substitution table">GSUB</abbr> table.</p>
+<section id="stage-5-step-1-ccmp">
+<h4>Stage 5, step 1: <code class="docutils literal notranslate"><span class="pre">ccmp</span></code><a class="headerlink" href="#stage-5-step-1-ccmp" title="Link to this heading">¶</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">ccmp</span></code> feature allows a font to substitute basic-jamo sequences
+with a pre-composed glyph including compound jamo.</p>
+<p>If present, these composition and decomposition substitutions must be
+performed before applying any other <abbr title="Glyph Substitution table">GSUB</abbr> lookups, because
+those lookups may be written to match only the <code class="docutils literal notranslate"><span class="pre">ccmp</span></code>-substituted
+glyphs.</p>
+</section>
+<section id="stage-5-step-2-ljmo">
+<h4>Stage 5, step 2: <code class="docutils literal notranslate"><span class="pre">ljmo</span></code><a class="headerlink" href="#stage-5-step-2-ljmo" title="Link to this heading">¶</a></h4>
+<p>This feature replaces the default (i.e., standalone) forms of leading
+consonant (choseong) glyphs in a syllable cell with alternate forms
+that fit into syllable-appropriate positions.</p>
+<p>The appropriate shape of the choseong glyph depends on the shape of
+the vowel (jungseong) that follows. For example, a tall jungseong forces
+the usage of a tall choseong form.</p>
+<p>In addition, if the syllable ends in a trailing consonant (jongseong),
+then shorter forms of both the leading consonant (choseong) and vowel
+(jungseong) glyphs will be used in order to provide sufficient
+vertical space.</p>
+<figure class="align-default" id="id6">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hangul-ljmo" viewbox="0 0 1009.58984375 202.578125" class="shaping-demo inline-svg greyscale-svg" names="hangul-ljmo" uri="images/hangul/hangul-ljmo.svg" alt="L Jamo feature application" title="L Jamo feature application">
+  <defs><g>
+<symbol overflow="visible" id="hangul-ljmo:id0:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-ljmo:id0:glyph0-1">
+<path style="stroke:none;" d="M 29.921875 -69.078125 C 26.625 -68.96875 23.203125 -69.078125 20.015625 -69.515625 L 19.359375 -68.203125 C 19.140625 -67.875 19.25 -67.546875 19.6875 -67.203125 C 22.109375 -65.453125 25.296875 -63.6875 28.59375 -62.59375 C 30.359375 -63.140625 33.765625 -63.90625 36.078125 -64.125 C 46.421875 -64.453125 62.484375 -66 73.265625 -67.546875 C 72.59375 -62.046875 71.71875 -56.546875 70.734375 -52.03125 C 70.625 -51.15625 70.734375 -50.8125 71.28125 -50.703125 L 73.921875 -50.15625 C 74.46875 -50.15625 75.015625 -50.375 75.34375 -50.9375 C 79.09375 -59.40625 82.390625 -71.9375 83.375 -80.734375 L 84.921875 -84.265625 C 85.140625 -84.8125 85.140625 -85.25 84.703125 -85.6875 C 83.703125 -86.234375 81.296875 -87.671875 79.859375 -88.328125 C 79.421875 -88.546875 78.65625 -88.546875 78.203125 -88.328125 L 74.46875 -86.453125 C 67.546875 -86.015625 38.828125 -85.46875 33.765625 -85.578125 C 30.796875 -85.578125 26.40625 -86.015625 23.203125 -86.6875 L 22.546875 -85.25 C 22.4375 -84.921875 22.546875 -84.484375 22.984375 -84.15625 C 25.40625 -82.171875 28.8125 -80.1875 32.125 -79.09375 C 34.65625 -79.859375 39.15625 -80.734375 41.578125 -80.84375 C 45.984375 -81.1875 66.4375 -81.515625 74.25 -81.515625 C 74.25 -78.65625 74.03125 -75.234375 73.703125 -71.71875 C 61.375 -70.296875 40.921875 -69.1875 29.921875 -69.078125 Z M 29.921875 -69.078125 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-ljmo:id0:glyph0-2">
+<path style="stroke:none;" d=""></path>
+</symbol>
+<symbol overflow="visible" id="hangul-ljmo:id0:glyph0-3">
+<path style="stroke:none;" d="M 58.078125 -46.640625 L 58.625 -51.046875 C 58.734375 -51.921875 58.40625 -52.578125 57.53125 -52.796875 C 55 -53.5625 49.609375 -54.234375 46.3125 -54.34375 C 45.4375 -54.34375 45.203125 -54.015625 45.09375 -53.796875 L 44.328125 -51.375 C 46.75 -50.59375 49.171875 -49.171875 50.375 -47.734375 L 50.375 -41.6875 C 34.65625 -41.46875 19.140625 -41.359375 15.84375 -41.359375 C 12.4375 -41.46875 7.265625 -41.90625 3.625 -42.5625 L 2.859375 -41.03125 C 2.75 -40.59375 2.859375 -40.265625 3.1875 -40.046875 C 5.9375 -37.84375 10.015625 -35.53125 13.96875 -34.3125 C 16.609375 -35.203125 22.21875 -36.296875 24.96875 -36.515625 C 30.796875 -36.84375 81.1875 -37.515625 88.875 -37.40625 C 92.1875 -37.40625 98.671875 -37.1875 101.640625 -36.84375 C 102.625 -37.296875 103.953125 -38.9375 103.953125 -40.8125 C 103.953125 -41.6875 103.296875 -42.34375 102.515625 -42.5625 C 99.984375 -43.453125 94.15625 -44.109375 90.203125 -44.21875 L 86.234375 -42.453125 C 82.9375 -42.234375 71.0625 -42.015625 57.859375 -41.796875 Z M 58.078125 -46.640625 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-ljmo:id0:glyph0-4">
+<path style="stroke:none;" d="M 82.828125 -3.953125 L 74.25 -12.875 C 75.125 -14.515625 75.90625 -16.28125 76.453125 -18.046875 C 76.5625 -18.703125 76.671875 -19.46875 76.671875 -20.34375 C 76.671875 -21.234375 76.234375 -21.890625 75.453125 -22.546875 C 73.375 -23.875 67.875 -26.1875 64.234375 -26.953125 C 63.46875 -27.0625 63.140625 -26.953125 62.8125 -26.515625 L 61.59375 -24.203125 C 64.234375 -22.765625 66.875 -20.34375 67.765625 -18.484375 C 65.125 -9.125 57.859375 1.203125 48.1875 9.6875 C 47.625 10.015625 47.625 10.453125 47.953125 10.671875 L 49.171875 11.65625 C 49.5 11.984375 49.828125 11.984375 50.375 11.546875 C 59.625 5.828125 66.875 -1.09375 71.71875 -8.46875 L 85.46875 7.484375 C 86.015625 8.25 86.90625 9.015625 87.5625 9.125 C 88.65625 9.5625 90.421875 8.90625 91.078125 7.703125 C 91.296875 7.15625 91.296875 6.375 90.859375 5.171875 C 90.203125 3.40625 88.546875 0.328125 87.234375 -1.765625 Z M 49.28125 -7.703125 L 43.015625 -13.640625 C 43.890625 -14.953125 44.65625 -16.390625 45.3125 -17.703125 C 45.65625 -18.265625 45.765625 -19.03125 45.765625 -20.015625 C 45.765625 -20.90625 45.3125 -21.5625 44.4375 -22 C 42.34375 -23.3125 37.1875 -24.96875 33.328125 -25.625 C 32.671875 -25.734375 32.34375 -25.515625 32.125 -25.1875 L 30.796875 -22.765625 C 33.328125 -21.5625 35.75 -19.578125 36.84375 -18.046875 C 32.890625 -9.234375 24.09375 0.109375 12.765625 7.375 C 12.3125 7.703125 12.3125 8.140625 12.65625 8.46875 L 13.75 9.453125 C 14.1875 9.6875 14.40625 9.6875 14.953125 9.34375 C 25.625 4.40625 34.3125 -2.3125 40.15625 -9.6875 L 50.15625 1.4375 C 50.703125 2.09375 51.59375 2.75 52.140625 2.859375 C 53.234375 2.96875 54.78125 2.421875 55.328125 1.3125 C 55.546875 0.765625 55.4375 0.109375 55.21875 -0.765625 C 54.78125 -2.3125 53.6875 -4.734375 52.6875 -6.375 Z M 49.28125 -7.703125 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-ljmo:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-ljmo:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-ljmo:id2:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-ljmo:id2:glyph0-1">
+<path style="stroke:none;" d="M 26.953125 -63.25 C 23.65625 -63.140625 19.796875 -63.359375 16.390625 -63.796875 L 15.625 -62.375 C 15.40625 -61.9375 15.515625 -61.59375 15.953125 -61.265625 C 18.59375 -59.296875 22.109375 -57.3125 25.515625 -55.984375 C 27.5 -56.765625 31.125 -57.421875 33.328125 -57.640625 C 45.09375 -58.1875 63.6875 -60.0625 75.125 -61.8125 C 74.578125 -55.21875 73.8125 -48.515625 72.8125 -43.125 C 72.703125 -42.125 72.9375 -41.90625 73.484375 -41.796875 L 75.796875 -41.25 C 76.234375 -41.25 76.78125 -41.46875 77.109375 -42.015625 C 81.1875 -52.25 84.59375 -67.09375 85.03125 -77.4375 L 86.6875 -80.953125 C 86.90625 -81.515625 86.90625 -81.953125 86.453125 -82.390625 C 85.578125 -83.046875 83.046875 -84.59375 81.734375 -85.25 C 81.1875 -85.46875 80.515625 -85.46875 79.859375 -85.25 L 75.5625 -83.15625 C 67.546875 -82.828125 36.40625 -82.390625 31.015625 -82.390625 C 27.9375 -82.390625 23.65625 -82.71875 20.453125 -83.375 L 19.796875 -82.0625 C 19.6875 -81.625 19.6875 -81.40625 20.125 -80.953125 C 22.546875 -78.984375 26.0625 -76.78125 29.484375 -75.5625 C 32.015625 -76.453125 36.953125 -77.328125 39.703125 -77.4375 C 44.65625 -77.765625 67.546875 -78.203125 75.90625 -78.203125 C 75.90625 -74.796875 75.796875 -70.625 75.453125 -66.21875 C 62.703125 -64.796875 39.375 -63.359375 26.953125 -63.25 Z M 26.953125 -63.25 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-ljmo:id2:glyph0-2">
+<path style="stroke:none;" d=""></path>
+</symbol>
+<symbol overflow="visible" id="hangul-ljmo:id2:glyph0-3">
+<path style="stroke:none;" d="M 58.078125 -46.640625 L 58.625 -51.046875 C 58.734375 -51.921875 58.40625 -52.578125 57.53125 -52.796875 C 55 -53.5625 49.609375 -54.234375 46.3125 -54.34375 C 45.4375 -54.34375 45.203125 -54.015625 45.09375 -53.796875 L 44.328125 -51.375 C 46.75 -50.59375 49.171875 -49.171875 50.375 -47.734375 L 50.375 -41.6875 C 34.65625 -41.46875 19.140625 -41.359375 15.84375 -41.359375 C 12.4375 -41.46875 7.265625 -41.90625 3.625 -42.5625 L 2.859375 -41.03125 C 2.75 -40.59375 2.859375 -40.265625 3.1875 -40.046875 C 5.9375 -37.84375 10.015625 -35.53125 13.96875 -34.3125 C 16.609375 -35.203125 22.21875 -36.296875 24.96875 -36.515625 C 30.796875 -36.84375 81.1875 -37.515625 88.875 -37.40625 C 92.1875 -37.40625 98.671875 -37.1875 101.640625 -36.84375 C 102.625 -37.296875 103.953125 -38.9375 103.953125 -40.8125 C 103.953125 -41.6875 103.296875 -42.34375 102.515625 -42.5625 C 99.984375 -43.453125 94.15625 -44.109375 90.203125 -44.21875 L 86.234375 -42.453125 C 82.9375 -42.234375 71.0625 -42.015625 57.859375 -41.796875 Z M 58.078125 -46.640625 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-ljmo:id2:glyph0-4">
+<path style="stroke:none;" d="M 82.828125 -3.953125 L 74.25 -12.875 C 75.125 -14.515625 75.90625 -16.28125 76.453125 -18.046875 C 76.5625 -18.703125 76.671875 -19.46875 76.671875 -20.34375 C 76.671875 -21.234375 76.234375 -21.890625 75.453125 -22.546875 C 73.375 -23.875 67.875 -26.1875 64.234375 -26.953125 C 63.46875 -27.0625 63.140625 -26.953125 62.8125 -26.515625 L 61.59375 -24.203125 C 64.234375 -22.765625 66.875 -20.34375 67.765625 -18.484375 C 65.125 -9.125 57.859375 1.203125 48.1875 9.6875 C 47.625 10.015625 47.625 10.453125 47.953125 10.671875 L 49.171875 11.65625 C 49.5 11.984375 49.828125 11.984375 50.375 11.546875 C 59.625 5.828125 66.875 -1.09375 71.71875 -8.46875 L 85.46875 7.484375 C 86.015625 8.25 86.90625 9.015625 87.5625 9.125 C 88.65625 9.5625 90.421875 8.90625 91.078125 7.703125 C 91.296875 7.15625 91.296875 6.375 90.859375 5.171875 C 90.203125 3.40625 88.546875 0.328125 87.234375 -1.765625 Z M 49.28125 -7.703125 L 43.015625 -13.640625 C 43.890625 -14.953125 44.65625 -16.390625 45.3125 -17.703125 C 45.65625 -18.265625 45.765625 -19.03125 45.765625 -20.015625 C 45.765625 -20.90625 45.3125 -21.5625 44.4375 -22 C 42.34375 -23.3125 37.1875 -24.96875 33.328125 -25.625 C 32.671875 -25.734375 32.34375 -25.515625 32.125 -25.1875 L 30.796875 -22.765625 C 33.328125 -21.5625 35.75 -19.578125 36.84375 -18.046875 C 32.890625 -9.234375 24.09375 0.109375 12.765625 7.375 C 12.3125 7.703125 12.3125 8.140625 12.65625 8.46875 L 13.75 9.453125 C 14.1875 9.6875 14.40625 9.6875 14.953125 9.34375 C 25.625 4.40625 34.3125 -2.3125 40.15625 -9.6875 L 50.15625 1.4375 C 50.703125 2.09375 51.59375 2.75 52.140625 2.859375 C 53.234375 2.96875 54.78125 2.421875 55.328125 1.3125 C 55.546875 0.765625 55.4375 0.109375 55.21875 -0.765625 C 54.78125 -2.3125 53.6875 -4.734375 52.6875 -6.375 Z M 49.28125 -7.703125 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hangul-ljmo:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,0.0)"><g id="hangul-ljmo:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c0" href="#hangul-ljmo:id0:glyph0-1"></use>
+  <use x="122.265625" y="128.609375" class="z" href="#hangul-ljmo:id0:glyph0-2"></use>
+  <use x="122.265625" y="128.609375" class="c1" href="#hangul-ljmo:id0:glyph0-3"></use>
+  <use x="228.53125" y="128.609375" class="z" href="#hangul-ljmo:id0:glyph0-2"></use>
+  <use x="228.53125" y="128.609375" class="c2" href="#hangul-ljmo:id0:glyph0-4"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-ljmo:id1:id1" transform="matrix(1.25,0,0,1.25,438.49609375,0.5859375)"><g id="hangul-ljmo:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hangul-ljmo:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-ljmo:id2:id2" transform="matrix(1.25,0,0,1.25,571.09375,0.0)"><g id="hangul-ljmo:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c0" href="#hangul-ljmo:id2:glyph0-1"></use>
+  <use x="122.265625" y="128.609375" class="z" href="#hangul-ljmo:id2:glyph0-2"></use>
+  <use x="122.265625" y="128.609375" class="c1" href="#hangul-ljmo:id2:glyph0-3"></use>
+  <use x="228.53125" y="128.609375" class="z" href="#hangul-ljmo:id2:glyph0-2"></use>
+  <use x="228.53125" y="128.609375" class="c2" href="#hangul-ljmo:id2:glyph0-4"></use>
+</g>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 18.4.3 </span><span class="caption-text">L Jamo feature application</span><a class="headerlink" href="#id6" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hangul-ljmo" onclick='toggleColor("hangul-ljmo")'>Toggle cluster colors</button></section>
+<section id="stage-5-step-3-vjmo">
+<h4>Stage 5, step 3: <code class="docutils literal notranslate"><span class="pre">vjmo</span></code><a class="headerlink" href="#stage-5-step-3-vjmo" title="Link to this heading">¶</a></h4>
+<p>This feature replaces the default (i.e., standalone) forms of vowel
+(jungseong) glyphs in a syllable cell with alternate forms that fit into
+syllable-appropriate positions.</p>
+<p>The appropriate shape of the jungseong glyph depends on the presence
+or absence of a trailing consonant (jongseong) at the end of the syllable.</p>
+<p>If the syllable ends in a trailing consonant (jongseong), then shorter
+forms of both the leading consonant (choseong) and vowel (jungseong)
+glyphs will be used in order to provide sufficient vertical space.</p>
+<figure class="align-default" id="id7">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hangul-vjmo" viewbox="0 0 876.7578125 202.578125" class="shaping-demo inline-svg greyscale-svg" names="hangul-vjmo" uri="images/hangul/hangul-vjmo.svg" alt="V Jamo feature application" title="V Jamo feature application">
+  <defs><g>
+<symbol overflow="visible" id="hangul-vjmo:id0:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-vjmo:id0:glyph0-1">
+<path style="stroke:none;" d="M 26.953125 -63.25 C 23.65625 -63.140625 19.796875 -63.359375 16.390625 -63.796875 L 15.625 -62.375 C 15.40625 -61.9375 15.515625 -61.59375 15.953125 -61.265625 C 18.59375 -59.296875 22.109375 -57.3125 25.515625 -55.984375 C 27.5 -56.765625 31.125 -57.421875 33.328125 -57.640625 C 45.09375 -58.1875 63.6875 -60.0625 75.125 -61.8125 C 74.578125 -55.21875 73.8125 -48.515625 72.8125 -43.125 C 72.703125 -42.125 72.9375 -41.90625 73.484375 -41.796875 L 75.796875 -41.25 C 76.234375 -41.25 76.78125 -41.46875 77.109375 -42.015625 C 81.1875 -52.25 84.59375 -67.09375 85.03125 -77.4375 L 86.6875 -80.953125 C 86.90625 -81.515625 86.90625 -81.953125 86.453125 -82.390625 C 85.578125 -83.046875 83.046875 -84.59375 81.734375 -85.25 C 81.1875 -85.46875 80.515625 -85.46875 79.859375 -85.25 L 75.5625 -83.15625 C 67.546875 -82.828125 36.40625 -82.390625 31.015625 -82.390625 C 27.9375 -82.390625 23.65625 -82.71875 20.453125 -83.375 L 19.796875 -82.0625 C 19.6875 -81.625 19.6875 -81.40625 20.125 -80.953125 C 22.546875 -78.984375 26.0625 -76.78125 29.484375 -75.5625 C 32.015625 -76.453125 36.953125 -77.328125 39.703125 -77.4375 C 44.65625 -77.765625 67.546875 -78.203125 75.90625 -78.203125 C 75.90625 -74.796875 75.796875 -70.625 75.453125 -66.21875 C 62.703125 -64.796875 39.375 -63.359375 26.953125 -63.25 Z M 26.953125 -63.25 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-vjmo:id0:glyph0-2">
+<path style="stroke:none;" d=""></path>
+</symbol>
+<symbol overflow="visible" id="hangul-vjmo:id0:glyph0-3">
+<path style="stroke:none;" d="M 58.078125 -46.640625 L 58.625 -51.046875 C 58.734375 -51.921875 58.40625 -52.578125 57.53125 -52.796875 C 55 -53.5625 49.609375 -54.234375 46.3125 -54.34375 C 45.4375 -54.34375 45.203125 -54.015625 45.09375 -53.796875 L 44.328125 -51.375 C 46.75 -50.59375 49.171875 -49.171875 50.375 -47.734375 L 50.375 -41.6875 C 34.65625 -41.46875 19.140625 -41.359375 15.84375 -41.359375 C 12.4375 -41.46875 7.265625 -41.90625 3.625 -42.5625 L 2.859375 -41.03125 C 2.75 -40.59375 2.859375 -40.265625 3.1875 -40.046875 C 5.9375 -37.84375 10.015625 -35.53125 13.96875 -34.3125 C 16.609375 -35.203125 22.21875 -36.296875 24.96875 -36.515625 C 30.796875 -36.84375 81.1875 -37.515625 88.875 -37.40625 C 92.1875 -37.40625 98.671875 -37.1875 101.640625 -36.84375 C 102.625 -37.296875 103.953125 -38.9375 103.953125 -40.8125 C 103.953125 -41.6875 103.296875 -42.34375 102.515625 -42.5625 C 99.984375 -43.453125 94.15625 -44.109375 90.203125 -44.21875 L 86.234375 -42.453125 C 82.9375 -42.234375 71.0625 -42.015625 57.859375 -41.796875 Z M 58.078125 -46.640625 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-vjmo:id0:glyph0-4">
+<path style="stroke:none;" d="M 82.828125 -3.953125 L 74.25 -12.875 C 75.125 -14.515625 75.90625 -16.28125 76.453125 -18.046875 C 76.5625 -18.703125 76.671875 -19.46875 76.671875 -20.34375 C 76.671875 -21.234375 76.234375 -21.890625 75.453125 -22.546875 C 73.375 -23.875 67.875 -26.1875 64.234375 -26.953125 C 63.46875 -27.0625 63.140625 -26.953125 62.8125 -26.515625 L 61.59375 -24.203125 C 64.234375 -22.765625 66.875 -20.34375 67.765625 -18.484375 C 65.125 -9.125 57.859375 1.203125 48.1875 9.6875 C 47.625 10.015625 47.625 10.453125 47.953125 10.671875 L 49.171875 11.65625 C 49.5 11.984375 49.828125 11.984375 50.375 11.546875 C 59.625 5.828125 66.875 -1.09375 71.71875 -8.46875 L 85.46875 7.484375 C 86.015625 8.25 86.90625 9.015625 87.5625 9.125 C 88.65625 9.5625 90.421875 8.90625 91.078125 7.703125 C 91.296875 7.15625 91.296875 6.375 90.859375 5.171875 C 90.203125 3.40625 88.546875 0.328125 87.234375 -1.765625 Z M 49.28125 -7.703125 L 43.015625 -13.640625 C 43.890625 -14.953125 44.65625 -16.390625 45.3125 -17.703125 C 45.65625 -18.265625 45.765625 -19.03125 45.765625 -20.015625 C 45.765625 -20.90625 45.3125 -21.5625 44.4375 -22 C 42.34375 -23.3125 37.1875 -24.96875 33.328125 -25.625 C 32.671875 -25.734375 32.34375 -25.515625 32.125 -25.1875 L 30.796875 -22.765625 C 33.328125 -21.5625 35.75 -19.578125 36.84375 -18.046875 C 32.890625 -9.234375 24.09375 0.109375 12.765625 7.375 C 12.3125 7.703125 12.3125 8.140625 12.65625 8.46875 L 13.75 9.453125 C 14.1875 9.6875 14.40625 9.6875 14.953125 9.34375 C 25.625 4.40625 34.3125 -2.3125 40.15625 -9.6875 L 50.15625 1.4375 C 50.703125 2.09375 51.59375 2.75 52.140625 2.859375 C 53.234375 2.96875 54.78125 2.421875 55.328125 1.3125 C 55.546875 0.765625 55.4375 0.109375 55.21875 -0.765625 C 54.78125 -2.3125 53.6875 -4.734375 52.6875 -6.375 Z M 49.28125 -7.703125 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-vjmo:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-vjmo:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-vjmo:id2:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-vjmo:id2:glyph0-1">
+<path style="stroke:none;" d="M 26.296875 -53.015625 C 22.765625 -53.015625 18.703125 -53.234375 15.296875 -53.796875 L 14.625 -52.25 C 14.40625 -51.921875 14.515625 -51.59375 14.953125 -51.15625 C 17.59375 -49.171875 21.234375 -47.078125 24.859375 -45.765625 C 26.734375 -46.421875 30.46875 -47.1875 32.671875 -47.296875 C 45.4375 -47.953125 66.4375 -49.9375 77.984375 -51.921875 C 77.328125 -43.453125 76.453125 -34.765625 75.234375 -27.71875 C 75.125 -26.84375 75.34375 -26.515625 75.90625 -26.40625 L 78.09375 -25.953125 C 78.65625 -25.953125 79.203125 -26.1875 79.421875 -26.84375 C 84.046875 -40.59375 87.78125 -60.71875 88 -73.921875 L 89.65625 -77.546875 C 89.875 -78.09375 89.875 -78.546875 89.4375 -78.984375 C 88.328125 -79.75 85.90625 -81.296875 84.59375 -81.953125 C 84.046875 -82.28125 83.375 -82.28125 82.71875 -81.953125 L 78.65625 -80.078125 C 70.296875 -79.640625 35.640625 -79.09375 29.8125 -79.09375 C 26.84375 -79.09375 22.546875 -79.421875 19.25 -80.078125 L 18.59375 -78.765625 C 18.375 -78.3125 18.375 -77.984375 18.921875 -77.546875 C 21.34375 -75.5625 24.96875 -73.484375 28.265625 -72.15625 C 30.90625 -73.046875 35.859375 -73.921875 38.71875 -74.03125 C 44.109375 -74.46875 69.515625 -74.90625 78.875 -74.796875 C 78.875 -69.625 78.65625 -63.25 78.203125 -56.546875 C 65.5625 -54.890625 39.59375 -53.125 26.296875 -53.015625 Z M 53.453125 -29.265625 L 54.015625 -33.875 C 54.125 -34.765625 53.796875 -35.3125 52.90625 -35.640625 C 50.046875 -36.515625 44 -37.296875 40.484375 -37.296875 C 39.703125 -37.296875 39.484375 -37.0625 39.375 -36.84375 L 38.71875 -34.3125 C 41.46875 -33.4375 44.109375 -32.015625 45.65625 -30.578125 L 45.765625 -11.328125 L 15.84375 -11.109375 C 12.4375 -11.109375 7.265625 -11.546875 3.625 -12.3125 L 2.859375 -10.671875 C 2.75 -10.34375 2.859375 -10.015625 3.1875 -9.796875 C 5.9375 -7.484375 10.015625 -5.171875 13.96875 -3.953125 C 16.609375 -4.84375 22.21875 -5.828125 24.96875 -6.046875 C 30.796875 -6.484375 81.1875 -7.046875 88.875 -6.9375 C 92.1875 -6.9375 98.671875 -6.703125 101.640625 -6.375 C 102.625 -6.9375 103.953125 -8.578125 103.953125 -10.453125 C 103.953125 -11.4375 103.296875 -11.984375 102.515625 -12.3125 C 99.984375 -13.09375 94.15625 -13.859375 90.203125 -13.96875 L 86.234375 -12.203125 C 82.609375 -11.984375 68.203125 -11.765625 53.234375 -11.4375 Z M 53.453125 -29.265625 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-vjmo:id2:glyph0-2">
+<path style="stroke:none;" d=""></path>
+</symbol>
+<symbol overflow="visible" id="hangul-vjmo:id2:glyph0-3">
+<path style="stroke:none;" d="M 82.828125 -3.953125 L 74.25 -12.875 C 75.125 -14.515625 75.90625 -16.28125 76.453125 -18.046875 C 76.5625 -18.703125 76.671875 -19.46875 76.671875 -20.34375 C 76.671875 -21.234375 76.234375 -21.890625 75.453125 -22.546875 C 73.375 -23.875 67.875 -26.1875 64.234375 -26.953125 C 63.46875 -27.0625 63.140625 -26.953125 62.8125 -26.515625 L 61.59375 -24.203125 C 64.234375 -22.765625 66.875 -20.34375 67.765625 -18.484375 C 65.125 -9.125 57.859375 1.203125 48.1875 9.6875 C 47.625 10.015625 47.625 10.453125 47.953125 10.671875 L 49.171875 11.65625 C 49.5 11.984375 49.828125 11.984375 50.375 11.546875 C 59.625 5.828125 66.875 -1.09375 71.71875 -8.46875 L 85.46875 7.484375 C 86.015625 8.25 86.90625 9.015625 87.5625 9.125 C 88.65625 9.5625 90.421875 8.90625 91.078125 7.703125 C 91.296875 7.15625 91.296875 6.375 90.859375 5.171875 C 90.203125 3.40625 88.546875 0.328125 87.234375 -1.765625 Z M 49.28125 -7.703125 L 43.015625 -13.640625 C 43.890625 -14.953125 44.65625 -16.390625 45.3125 -17.703125 C 45.65625 -18.265625 45.765625 -19.03125 45.765625 -20.015625 C 45.765625 -20.90625 45.3125 -21.5625 44.4375 -22 C 42.34375 -23.3125 37.1875 -24.96875 33.328125 -25.625 C 32.671875 -25.734375 32.34375 -25.515625 32.125 -25.1875 L 30.796875 -22.765625 C 33.328125 -21.5625 35.75 -19.578125 36.84375 -18.046875 C 32.890625 -9.234375 24.09375 0.109375 12.765625 7.375 C 12.3125 7.703125 12.3125 8.140625 12.65625 8.46875 L 13.75 9.453125 C 14.1875 9.6875 14.40625 9.6875 14.953125 9.34375 C 25.625 4.40625 34.3125 -2.3125 40.15625 -9.6875 L 50.15625 1.4375 C 50.703125 2.09375 51.59375 2.75 52.140625 2.859375 C 53.234375 2.96875 54.78125 2.421875 55.328125 1.3125 C 55.546875 0.765625 55.4375 0.109375 55.21875 -0.765625 C 54.78125 -2.3125 53.6875 -4.734375 52.6875 -6.375 Z M 49.28125 -7.703125 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hangul-vjmo:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,0.0)"><g id="hangul-vjmo:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c0" href="#hangul-vjmo:id0:glyph0-1"></use>
+  <use x="122.265625" y="128.609375" class="z" href="#hangul-vjmo:id0:glyph0-2"></use>
+  <use x="122.265625" y="128.609375" class="c1" href="#hangul-vjmo:id0:glyph0-3"></use>
+  <use x="228.53125" y="128.609375" class="z" href="#hangul-vjmo:id0:glyph0-2"></use>
+  <use x="228.53125" y="128.609375" class="c2" href="#hangul-vjmo:id0:glyph0-4"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-vjmo:id1:id1" transform="matrix(1.25,0,0,1.25,438.49609375,0.5859375)"><g id="hangul-vjmo:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hangul-vjmo:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-vjmo:id2:id2" transform="matrix(1.25,0,0,1.25,571.09375,0.0)"><g id="hangul-vjmo:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c3" href="#hangul-vjmo:id2:glyph0-1"></use>
+  <use x="122.265625" y="128.609375" class="z" href="#hangul-vjmo:id2:glyph0-2"></use>
+  <use x="122.265625" y="128.609375" class="c2" href="#hangul-vjmo:id2:glyph0-3"></use>
+</g>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 18.4.4 </span><span class="caption-text">V Jamo feature application</span><a class="headerlink" href="#id7" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hangul-vjmo" onclick='toggleColor("hangul-vjmo")'>Toggle cluster colors</button></section>
+<section id="stage-5-step-4-tjmo">
+<h4>Stage 5, step 4: <code class="docutils literal notranslate"><span class="pre">tjmo</span></code><a class="headerlink" href="#stage-5-step-4-tjmo" title="Link to this heading">¶</a></h4>
+<p>This feature replaces the default (i.e., standalone) forms of trailing
+consonant (jongseong) glyphs in a syllable cell with alternate forms
+that fit into syllable-appropriate positions.</p>
+<p>Because jongseong jamo are always preceded by a choseong jamo and a
+jungseong jamo, there is less variation in shape that the alternate
+forms can take on. A given font may, however, include several
+context-dependent alternates for stylistic or typographic variation.</p>
+<figure class="align-default" id="id8">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hangul-tjmo" viewbox="0 0 611.09375 202.578125" class="shaping-demo inline-svg greyscale-svg" names="hangul-tjmo" uri="images/hangul/hangul-tjmo.svg" alt="T Jamo feature application" title="T Jamo feature application">
+  <defs><g>
+<symbol overflow="visible" id="hangul-tjmo:id0:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tjmo:id0:glyph0-1">
+<path style="stroke:none;" d="M 26.296875 -53.015625 C 22.765625 -53.015625 18.703125 -53.234375 15.296875 -53.796875 L 14.625 -52.25 C 14.40625 -51.921875 14.515625 -51.59375 14.953125 -51.15625 C 17.59375 -49.171875 21.234375 -47.078125 24.859375 -45.765625 C 26.734375 -46.421875 30.46875 -47.1875 32.671875 -47.296875 C 45.4375 -47.953125 66.4375 -49.9375 77.984375 -51.921875 C 77.328125 -43.453125 76.453125 -34.765625 75.234375 -27.71875 C 75.125 -26.84375 75.34375 -26.515625 75.90625 -26.40625 L 78.09375 -25.953125 C 78.65625 -25.953125 79.203125 -26.1875 79.421875 -26.84375 C 84.046875 -40.59375 87.78125 -60.71875 88 -73.921875 L 89.65625 -77.546875 C 89.875 -78.09375 89.875 -78.546875 89.4375 -78.984375 C 88.328125 -79.75 85.90625 -81.296875 84.59375 -81.953125 C 84.046875 -82.28125 83.375 -82.28125 82.71875 -81.953125 L 78.65625 -80.078125 C 70.296875 -79.640625 35.640625 -79.09375 29.8125 -79.09375 C 26.84375 -79.09375 22.546875 -79.421875 19.25 -80.078125 L 18.59375 -78.765625 C 18.375 -78.3125 18.375 -77.984375 18.921875 -77.546875 C 21.34375 -75.5625 24.96875 -73.484375 28.265625 -72.15625 C 30.90625 -73.046875 35.859375 -73.921875 38.71875 -74.03125 C 44.109375 -74.46875 69.515625 -74.90625 78.875 -74.796875 C 78.875 -69.625 78.65625 -63.25 78.203125 -56.546875 C 65.5625 -54.890625 39.59375 -53.125 26.296875 -53.015625 Z M 53.453125 -29.265625 L 54.015625 -33.875 C 54.125 -34.765625 53.796875 -35.3125 52.90625 -35.640625 C 50.046875 -36.515625 44 -37.296875 40.484375 -37.296875 C 39.703125 -37.296875 39.484375 -37.0625 39.375 -36.84375 L 38.71875 -34.3125 C 41.46875 -33.4375 44.109375 -32.015625 45.65625 -30.578125 L 45.765625 -11.328125 L 15.84375 -11.109375 C 12.4375 -11.109375 7.265625 -11.546875 3.625 -12.3125 L 2.859375 -10.671875 C 2.75 -10.34375 2.859375 -10.015625 3.1875 -9.796875 C 5.9375 -7.484375 10.015625 -5.171875 13.96875 -3.953125 C 16.609375 -4.84375 22.21875 -5.828125 24.96875 -6.046875 C 30.796875 -6.484375 81.1875 -7.046875 88.875 -6.9375 C 92.1875 -6.9375 98.671875 -6.703125 101.640625 -6.375 C 102.625 -6.9375 103.953125 -8.578125 103.953125 -10.453125 C 103.953125 -11.4375 103.296875 -11.984375 102.515625 -12.3125 C 99.984375 -13.09375 94.15625 -13.859375 90.203125 -13.96875 L 86.234375 -12.203125 C 82.609375 -11.984375 68.203125 -11.765625 53.234375 -11.4375 Z M 53.453125 -29.265625 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tjmo:id0:glyph0-2">
+<path style="stroke:none;" d=""></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tjmo:id0:glyph0-3">
+<path style="stroke:none;" d="M 82.828125 -3.953125 L 74.25 -12.875 C 75.125 -14.515625 75.90625 -16.28125 76.453125 -18.046875 C 76.5625 -18.703125 76.671875 -19.46875 76.671875 -20.34375 C 76.671875 -21.234375 76.234375 -21.890625 75.453125 -22.546875 C 73.375 -23.875 67.875 -26.1875 64.234375 -26.953125 C 63.46875 -27.0625 63.140625 -26.953125 62.8125 -26.515625 L 61.59375 -24.203125 C 64.234375 -22.765625 66.875 -20.34375 67.765625 -18.484375 C 65.125 -9.125 57.859375 1.203125 48.1875 9.6875 C 47.625 10.015625 47.625 10.453125 47.953125 10.671875 L 49.171875 11.65625 C 49.5 11.984375 49.828125 11.984375 50.375 11.546875 C 59.625 5.828125 66.875 -1.09375 71.71875 -8.46875 L 85.46875 7.484375 C 86.015625 8.25 86.90625 9.015625 87.5625 9.125 C 88.65625 9.5625 90.421875 8.90625 91.078125 7.703125 C 91.296875 7.15625 91.296875 6.375 90.859375 5.171875 C 90.203125 3.40625 88.546875 0.328125 87.234375 -1.765625 Z M 49.28125 -7.703125 L 43.015625 -13.640625 C 43.890625 -14.953125 44.65625 -16.390625 45.3125 -17.703125 C 45.65625 -18.265625 45.765625 -19.03125 45.765625 -20.015625 C 45.765625 -20.90625 45.3125 -21.5625 44.4375 -22 C 42.34375 -23.3125 37.1875 -24.96875 33.328125 -25.625 C 32.671875 -25.734375 32.34375 -25.515625 32.125 -25.1875 L 30.796875 -22.765625 C 33.328125 -21.5625 35.75 -19.578125 36.84375 -18.046875 C 32.890625 -9.234375 24.09375 0.109375 12.765625 7.375 C 12.3125 7.703125 12.3125 8.140625 12.65625 8.46875 L 13.75 9.453125 C 14.1875 9.6875 14.40625 9.6875 14.953125 9.34375 C 25.625 4.40625 34.3125 -2.3125 40.15625 -9.6875 L 50.15625 1.4375 C 50.703125 2.09375 51.59375 2.75 52.140625 2.859375 C 53.234375 2.96875 54.78125 2.421875 55.328125 1.3125 C 55.546875 0.765625 55.4375 0.109375 55.21875 -0.765625 C 54.78125 -2.3125 53.6875 -4.734375 52.6875 -6.375 Z M 49.28125 -7.703125 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-tjmo:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tjmo:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-tjmo:id2:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tjmo:id2:glyph0-1">
+<path style="stroke:none;" d="M 55.875 -50.375 L 56.4375 -54.890625 C 56.546875 -55.875 56.203125 -56.4375 55.21875 -56.765625 C 52.578125 -57.53125 46.75 -58.1875 43.34375 -58.1875 C 42.453125 -58.1875 42.234375 -57.96875 42.125 -57.75 L 41.46875 -55.21875 C 44.109375 -54.453125 46.640625 -53.015625 47.953125 -51.59375 L 47.84375 -41.46875 L 15.84375 -41.25 C 12.4375 -41.25 7.265625 -41.6875 3.625 -42.34375 L 2.859375 -40.8125 C 2.75 -40.484375 2.859375 -40.15625 3.1875 -39.8125 C 5.9375 -37.625 10.015625 -35.3125 13.96875 -34.09375 C 16.609375 -34.984375 22.21875 -35.96875 24.96875 -36.1875 C 30.796875 -36.515625 81.1875 -37.1875 88.875 -37.0625 C 92.1875 -37.0625 98.671875 -36.84375 101.640625 -36.515625 C 102.625 -37.0625 103.953125 -38.71875 103.953125 -40.59375 C 103.953125 -41.46875 103.296875 -42.125 102.515625 -42.34375 C 99.984375 -43.234375 94.15625 -43.890625 90.203125 -44 L 86.234375 -42.34375 C 82.828125 -42.125 69.625 -41.796875 55.546875 -41.578125 Z M 26.1875 -68.53125 C 22.984375 -68.421875 19.359375 -68.53125 16.171875 -68.96875 L 15.40625 -67.65625 C 15.296875 -67.203125 15.296875 -66.984375 15.734375 -66.65625 C 18.15625 -64.796875 21.453125 -63.03125 24.75 -61.703125 C 26.625 -62.375 30.140625 -63.25 32.453125 -63.359375 C 44.984375 -63.90625 65.453125 -65.78125 76.890625 -67.65625 C 76.453125 -62.265625 75.796875 -56.765625 74.90625 -52.359375 C 74.796875 -51.484375 75.125 -51.265625 75.5625 -51.046875 L 77.765625 -50.59375 C 78.3125 -50.59375 78.875 -50.8125 79.203125 -51.375 C 82.71875 -59.953125 85.796875 -72.59375 86.453125 -81.515625 L 88 -85.03125 C 88.21875 -85.578125 88.21875 -86.015625 87.78125 -86.453125 C 86.90625 -87.125 84.265625 -88.546875 83.046875 -89.09375 C 82.5 -89.3125 81.734375 -89.3125 81.1875 -89.09375 L 77.4375 -87.34375 C 69.84375 -86.90625 36.953125 -86.453125 31.234375 -86.5625 C 28.15625 -86.5625 23.875 -87.015625 20.5625 -87.671875 L 19.796875 -86.234375 C 19.6875 -85.796875 19.796875 -85.46875 20.234375 -85.03125 C 22.765625 -83.046875 26.296875 -80.953125 29.59375 -79.75 C 32.015625 -80.625 36.625 -81.515625 39.15625 -81.625 C 44.21875 -81.84375 68.3125 -82.171875 77.328125 -82.0625 C 77.4375 -79.09375 77.328125 -75.5625 77.109375 -71.9375 C 64.5625 -70.296875 39.265625 -68.640625 26.1875 -68.53125 Z M 82.9375 -2.859375 L 73.59375 -12.984375 C 75.125 -15.734375 76.34375 -18.59375 77.109375 -21.34375 C 77.328125 -21.890625 77.4375 -22.765625 77.4375 -23.65625 C 77.4375 -24.53125 77.109375 -25.1875 76.234375 -25.734375 C 74.140625 -27.171875 68.640625 -29.375 65.015625 -30.140625 C 64.34375 -30.25 63.90625 -30.140625 63.6875 -29.8125 L 62.484375 -27.5 C 65.015625 -25.953125 67.65625 -23.546875 68.640625 -21.671875 C 66 -11.4375 58.625 0.109375 48.515625 9.5625 C 47.953125 10.015625 47.953125 10.34375 48.40625 10.671875 L 49.390625 11.65625 C 49.828125 11.984375 50.15625 11.984375 50.8125 11.546875 C 59.40625 5.609375 66.21875 -1.3125 70.953125 -8.46875 L 85.46875 8.796875 C 86.015625 9.6875 86.90625 10.453125 87.5625 10.671875 C 88.65625 11 90.53125 10.34375 91.1875 9.234375 C 91.40625 8.578125 91.40625 7.8125 90.96875 6.59375 C 90.3125 4.734375 88.765625 1.4375 87.34375 -0.65625 Z M 49.171875 -7.921875 L 41.6875 -15.1875 C 42.796875 -17.046875 43.78125 -18.921875 44.65625 -20.90625 C 44.875 -21.5625 45.09375 -22.328125 45.09375 -23.203125 C 45.09375 -24.09375 44.765625 -24.75 43.890625 -25.296875 C 41.6875 -26.515625 36.515625 -28.265625 32.78125 -28.8125 C 32.015625 -28.9375 31.6875 -28.8125 31.453125 -28.375 L 30.140625 -26.0625 C 32.671875 -24.75 35.09375 -22.875 36.1875 -21.234375 C 32.34375 -11.546875 23.4375 -0.875 11.875 7.59375 C 11.328125 7.921875 11.21875 8.25 11.65625 8.578125 L 12.765625 9.5625 C 13.09375 9.90625 13.421875 9.90625 13.96875 9.5625 C 24.640625 3.953125 33.109375 -3.296875 38.9375 -11.109375 L 49.9375 1.203125 C 50.59375 1.875 51.375 2.53125 52.03125 2.640625 C 53.015625 2.859375 54.453125 2.203125 55 1.09375 C 55.21875 0.65625 55.109375 0 54.890625 -0.984375 C 54.453125 -2.421875 53.34375 -4.84375 52.46875 -6.59375 Z M 49.171875 -7.921875 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hangul-tjmo:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,0.0)"><g id="hangul-tjmo:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c0" href="#hangul-tjmo:id0:glyph0-1"></use>
+  <use x="122.265625" y="128.609375" class="z" href="#hangul-tjmo:id0:glyph0-2"></use>
+  <use x="122.265625" y="128.609375" class="c1" href="#hangul-tjmo:id0:glyph0-3"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-tjmo:id1:id1" transform="matrix(1.25,0,0,1.25,305.6640625,0.5859375)"><g id="hangul-tjmo:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hangul-tjmo:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-tjmo:id2:id2" transform="matrix(1.25,0,0,1.25,438.26171875,0.0)"><g id="hangul-tjmo:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c2" href="#hangul-tjmo:id2:glyph0-1"></use>
+</g>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 18.4.5 </span><span class="caption-text">T Jamo feature application</span><a class="headerlink" href="#id8" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hangul-tjmo" onclick='toggleColor("hangul-tjmo")'>Toggle cluster colors</button></section>
+</section>
+<section id="stage-6-reordering-tone-marks">
+<h3><span class="section-number">18.4.6. </span>Stage 6. Reordering tone marks<a class="headerlink" href="#stage-6-reordering-tone-marks" title="Link to this heading">¶</a></h3>
+<p>Any tone marks should now be reordered. In the text run, marks occur immediately after
+the syllable to which they apply. After reordering, each mark should
+be placed immediately to the left of the syllable.</p>
+<p>This reordering move is the same regardless of whether the syllable in
+question is a precomposed syllable codepoint from the Hangul Syllables
+block or a jamo-based syllable composed via the application of <abbr title="Glyph Substitution table">GSUB</abbr>
+features. Therefore, the reordering must take place at the end of the
+shaping process.</p>
+<figure class="align-default" id="id9">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hangul-tone" viewbox="0 0 684.51171875 202.578125" class="shaping-demo inline-svg greyscale-svg" names="hangul-tone" uri="images/hangul/hangul-tone.svg" alt="Tone-mark reordering" title="Tone-mark reordering">
+  <defs><g>
+<symbol overflow="visible" id="hangul-tone:id0:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tone:id0:glyph0-1">
+<path style="stroke:none;" d="M 44.109375 -77.875 C 40.265625 -77.546875 20.015625 -77.328125 16.171875 -77.4375 C 13.859375 -77.4375 9.796875 -77.765625 6.9375 -78.203125 L 6.15625 -76.890625 C 6.046875 -76.671875 6.046875 -76.234375 6.484375 -75.796875 C 8.578125 -74.03125 11.875 -72.046875 14.734375 -70.953125 C 16.609375 -71.609375 20.34375 -72.375 22.4375 -72.484375 C 25.625 -72.703125 43.015625 -72.9375 46.3125 -72.9375 C 48.625 -72.9375 53.34375 -72.703125 55.328125 -72.59375 C 56.203125 -73.046875 57.53125 -74.6875 57.53125 -76.5625 C 57.53125 -77.109375 57.203125 -77.765625 56.4375 -77.984375 C 54.5625 -78.65625 50.265625 -79.203125 47.296875 -79.3125 Z M 47.078125 -62.265625 L 47.625 -66.546875 C 47.84375 -67.3125 47.515625 -67.984375 46.53125 -68.203125 C 44.328125 -68.859375 40.15625 -69.296875 37.296875 -69.40625 C 36.515625 -69.40625 36.296875 -69.296875 36.1875 -68.859375 L 35.53125 -66.65625 C 37.515625 -66 39.375 -64.796875 40.265625 -63.578125 L 40.59375 -50.59375 L 25.515625 -49.9375 L 24.859375 -58.625 L 25.296875 -62.59375 C 25.40625 -63.359375 25.1875 -63.796875 24.3125 -64.234375 C 22.109375 -65.234375 18.265625 -66.21875 15.515625 -66.65625 C 14.734375 -66.65625 14.515625 -66.4375 14.40625 -66.109375 L 13.421875 -64.125 C 15.625 -63.03125 17.15625 -61.484375 18.046875 -60.0625 L 19.25 -49.828125 L 16.390625 -49.828125 C 13.96875 -49.828125 9.796875 -50.15625 6.8125 -50.703125 L 6.15625 -49.390625 C 5.9375 -49.0625 5.9375 -48.734375 6.375 -48.40625 C 8.578125 -46.53125 11.984375 -44.65625 14.734375 -43.5625 C 16.71875 -44.21875 20.6875 -44.875 22.65625 -45.09375 L 31.015625 -45.546875 L 31.015625 -33.546875 C 24.75 -33 18.921875 -32.5625 14.625 -32.453125 C 11.109375 -32.34375 6.8125 -32.78125 3.40625 -33.4375 L 2.640625 -31.90625 C 2.53125 -31.453125 2.640625 -31.125 2.96875 -30.796875 C 5.71875 -28.59375 9.5625 -26.1875 13.203125 -24.640625 C 15.1875 -25.40625 19.359375 -26.40625 21.671875 -26.515625 C 33.4375 -27.609375 54.671875 -31.015625 65.5625 -33.765625 C 65.671875 -30.46875 65.78125 -27.171875 66.109375 -24.96875 L 70.515625 -24.96875 C 71.828125 -29.265625 72.9375 -36.515625 72.9375 -42.90625 L 72.9375 -52.140625 L 85.6875 -52.359375 L 85.6875 -40.484375 C 85.6875 -36.40625 85.90625 -28.59375 86.34375 -24.859375 L 90.96875 -24.859375 C 92.296875 -29.265625 93.390625 -37.0625 93.390625 -42.90625 L 93.390625 -83.59375 L 93.609375 -88.984375 C 93.71875 -89.984375 93.390625 -90.75 92.296875 -91.078125 C 89.546875 -92.40625 82.9375 -93.71875 79.203125 -93.828125 C 78.4375 -93.828125 78.09375 -93.609375 77.875 -93.171875 L 77.109375 -90.640625 C 80.625 -89.4375 83.9375 -87.5625 85.6875 -85.359375 L 85.6875 -57.203125 L 72.9375 -56.984375 L 72.9375 -78.09375 L 73.15625 -82.9375 C 73.15625 -84.046875 72.8125 -84.59375 71.9375 -85.03125 C 69.296875 -86.234375 63.25 -87.453125 59.84375 -87.5625 C 59.0625 -87.5625 58.625 -87.34375 58.515625 -87.015625 L 57.640625 -84.375 C 60.828125 -83.375 63.90625 -81.625 65.453125 -79.640625 L 65.453125 -37.953125 C 58.734375 -36.625 48.40625 -35.3125 38.28125 -34.203125 L 38.28125 -45.875 L 48.296875 -46.203125 C 50.59375 -46.203125 55.4375 -46.203125 57.421875 -45.984375 C 58.296875 -46.421875 59.515625 -47.84375 59.515625 -49.828125 C 59.515625 -50.375 59.1875 -51.046875 58.40625 -51.265625 C 56.4375 -51.921875 52.140625 -52.46875 49.28125 -52.46875 L 46.96875 -51.484375 Z M 89.984375 13.09375 C 91.1875 8.90625 92.1875 1.65625 92.1875 -2.859375 L 92.40625 -14.40625 L 93.71875 -17.8125 C 93.9375 -18.375 93.9375 -18.8125 93.5 -19.140625 C 92.734375 -19.796875 90.53125 -21.125 89.3125 -21.78125 C 88.875 -22 88.109375 -22 87.671875 -21.78125 L 84.484375 -20.234375 C 76.78125 -19.796875 43.671875 -19.25 38.390625 -19.25 C 35.3125 -19.25 30.90625 -19.578125 27.609375 -20.125 L 26.84375 -18.703125 C 26.734375 -18.265625 26.84375 -18.046875 27.171875 -17.59375 C 29.8125 -15.625 33.328125 -13.75 36.734375 -12.546875 C 39.15625 -13.421875 43.890625 -14.1875 46.53125 -14.296875 C 51.375 -14.625 75.453125 -15.0625 84.375 -15.0625 L 84.375 -0.984375 C 84.375 2.859375 84.59375 9.453125 85.140625 13.09375 Z M 89.984375 13.09375 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tone:id0:glyph0-2">
+<path style="stroke:none;" d=""></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tone:id0:glyph0-3">
+<path style="stroke:none;" d="M 13.75 -59.84375 C 9.796875 -59.84375 6.484375 -56.546875 6.484375 -52.578125 C 6.484375 -48.625 9.796875 -45.3125 13.75 -45.3125 C 17.703125 -45.3125 21.015625 -48.625 21.015625 -52.578125 C 21.015625 -56.546875 17.703125 -59.84375 13.75 -59.84375 Z M 13.75 -38.28125 C 9.796875 -38.28125 6.484375 -34.984375 6.484375 -31.015625 C 6.484375 -27.0625 9.796875 -23.765625 13.75 -23.765625 C 17.703125 -23.765625 21.015625 -27.0625 21.015625 -31.015625 C 21.015625 -34.984375 17.703125 -38.28125 13.75 -38.28125 Z M 13.75 -38.28125 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tone:id0:glyph0-4">
+<path style="stroke:none;" d="M 51.046875 -84.703125 C 48.84375 -84.703125 47.078125 -86.453125 47.078125 -88.546875 C 47.078125 -90.75 48.84375 -92.515625 51.046875 -92.515625 C 53.125 -92.515625 54.890625 -90.75 54.890625 -88.546875 C 54.890625 -86.453125 53.125 -84.703125 51.046875 -84.703125 Z M 66.4375 -83.484375 C 64.234375 -83.484375 62.484375 -85.140625 62.484375 -87.34375 C 62.484375 -89.546875 64.234375 -91.1875 66.4375 -91.1875 C 68.640625 -91.1875 70.296875 -89.546875 70.296875 -87.34375 C 70.296875 -85.140625 68.640625 -83.484375 66.4375 -83.484375 Z M 80.515625 -77.21875 C 78.546875 -77.21875 76.671875 -78.984375 76.671875 -81.1875 C 76.671875 -83.265625 78.546875 -85.03125 80.515625 -85.03125 C 82.828125 -85.03125 84.59375 -83.265625 84.59375 -81.1875 C 84.59375 -78.984375 82.828125 -77.21875 80.515625 -77.21875 Z M 91.953125 -66.765625 C 89.875 -66.765625 88.109375 -68.53125 88.109375 -70.734375 C 88.109375 -72.8125 89.875 -74.578125 91.953125 -74.578125 C 94.265625 -74.578125 96.03125 -72.8125 96.03125 -70.734375 C 96.03125 -68.53125 94.265625 -66.765625 91.953125 -66.765625 Z M 99.4375 -53.234375 C 97.234375 -53.234375 95.484375 -54.890625 95.484375 -57.09375 C 95.484375 -59.1875 97.234375 -60.9375 99.4375 -60.9375 C 101.640625 -60.9375 103.296875 -59.1875 103.296875 -57.09375 C 103.296875 -54.890625 101.640625 -53.234375 99.4375 -53.234375 Z M 102.078125 -37.84375 C 99.875 -37.84375 98.015625 -39.59375 98.015625 -41.796875 C 98.015625 -43.890625 99.875 -45.65625 102.078125 -45.65625 C 104.171875 -45.65625 105.9375 -43.890625 105.9375 -41.796875 C 105.9375 -39.59375 104.171875 -37.84375 102.078125 -37.84375 Z M 99.4375 -22.546875 C 97.234375 -22.546875 95.59375 -24.3125 95.59375 -26.515625 C 95.59375 -28.59375 97.234375 -30.359375 99.4375 -30.359375 C 101.640625 -30.359375 103.40625 -28.59375 103.40625 -26.515625 C 103.40625 -24.3125 101.640625 -22.546875 99.4375 -22.546875 Z M 92.0625 -9.015625 C 89.984375 -9.015625 88.109375 -10.671875 88.109375 -12.875 C 88.109375 -14.953125 89.984375 -16.71875 92.0625 -16.71875 C 94.265625 -16.71875 96.03125 -14.953125 96.03125 -12.875 C 96.03125 -10.671875 94.265625 -9.015625 92.0625 -9.015625 Z M 80.625 1.4375 C 78.546875 1.4375 76.78125 -0.109375 76.78125 -2.3125 C 76.78125 -4.515625 78.546875 -6.15625 80.625 -6.15625 C 82.9375 -6.15625 84.703125 -4.515625 84.703125 -2.3125 C 84.703125 -0.109375 82.9375 1.4375 80.625 1.4375 Z M 66.546875 7.703125 C 64.34375 7.703125 62.59375 6.046875 62.59375 3.84375 C 62.59375 1.765625 64.34375 0 66.546875 0 C 68.75 0 70.40625 1.765625 70.40625 3.84375 C 70.40625 6.046875 68.75 7.703125 66.546875 7.703125 Z M 51.15625 9.015625 C 48.953125 9.015625 47.078125 7.265625 47.078125 5.171875 C 47.078125 2.96875 48.953125 1.203125 51.15625 1.203125 C 53.234375 1.203125 55 2.96875 55 5.171875 C 55 7.265625 53.234375 9.015625 51.15625 9.015625 Z M 36.078125 5.28125 C 33.984375 5.28125 32.125 3.515625 32.125 1.3125 C 32.125 -0.765625 33.984375 -2.53125 36.078125 -2.53125 C 38.28125 -2.53125 40.046875 -0.765625 40.046875 1.3125 C 40.046875 3.515625 38.28125 5.28125 36.078125 5.28125 Z M 23.203125 -3.296875 C 21.015625 -3.296875 19.25 -4.84375 19.25 -7.046875 C 19.25 -9.234375 21.015625 -10.890625 23.203125 -10.890625 C 25.296875 -10.890625 27.0625 -9.234375 27.0625 -7.046875 C 27.0625 -4.84375 25.296875 -3.296875 23.203125 -3.296875 Z M 13.640625 -15.515625 C 11.4375 -15.515625 9.6875 -17.046875 9.6875 -19.359375 C 9.6875 -21.453125 11.4375 -23.09375 13.640625 -23.09375 C 15.84375 -23.09375 17.59375 -21.453125 17.59375 -19.359375 C 17.59375 -17.046875 15.84375 -15.515625 13.640625 -15.515625 Z M 8.578125 -30.03125 C 6.484375 -30.03125 4.625 -31.796875 4.625 -33.875 C 4.625 -36.078125 6.484375 -37.84375 8.578125 -37.84375 C 10.78125 -37.84375 12.546875 -36.078125 12.546875 -33.875 C 12.546875 -31.796875 10.78125 -30.03125 8.578125 -30.03125 Z M 8.578125 -45.546875 C 6.375 -45.546875 4.625 -47.296875 4.625 -49.390625 C 4.625 -51.59375 6.375 -53.34375 8.578125 -53.34375 C 10.78125 -53.34375 12.546875 -51.59375 12.546875 -49.390625 C 12.546875 -47.296875 10.78125 -45.546875 8.578125 -45.546875 Z M 13.640625 -60.171875 C 11.4375 -60.171875 9.5625 -61.8125 9.5625 -64.125 C 9.5625 -66.21875 11.4375 -67.875 13.640625 -67.875 C 15.734375 -67.875 17.484375 -66.21875 17.484375 -64.125 C 17.484375 -61.8125 15.734375 -60.171875 13.640625 -60.171875 Z M 23.09375 -72.375 C 20.90625 -72.375 19.140625 -74.140625 19.140625 -76.34375 C 19.140625 -78.4375 20.90625 -80.1875 23.09375 -80.1875 C 25.296875 -80.1875 26.953125 -78.4375 26.953125 -76.34375 C 26.953125 -74.140625 25.296875 -72.375 23.09375 -72.375 Z M 36.078125 -80.953125 C 33.875 -80.953125 32.015625 -82.5 32.015625 -84.703125 C 32.015625 -86.90625 33.875 -88.546875 36.078125 -88.546875 C 38.171875 -88.546875 39.9375 -86.90625 39.9375 -84.703125 C 39.9375 -82.5 38.171875 -80.953125 36.078125 -80.953125 Z M 36.078125 -80.953125 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-tone:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tone:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hangul-tone:id2:glyph0-0">
+<path style="stroke:none;" d="M 11 13.203125 L 99 13.203125 L 99 -96.796875 L 11 -96.796875 Z M 55 -46.3125 L 20.015625 -91.296875 L 89.984375 -91.296875 Z M 58.515625 -41.796875 L 93.5 -86.796875 L 93.5 3.1875 Z M 20.015625 7.703125 L 55 -37.296875 L 89.984375 7.703125 Z M 16.5 -86.796875 L 51.484375 -41.796875 L 16.5 3.1875 Z M 16.5 -86.796875 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tone:id2:glyph0-1">
+<path style="stroke:none;" d="M 13.75 -59.84375 C 9.796875 -59.84375 6.484375 -56.546875 6.484375 -52.578125 C 6.484375 -48.625 9.796875 -45.3125 13.75 -45.3125 C 17.703125 -45.3125 21.015625 -48.625 21.015625 -52.578125 C 21.015625 -56.546875 17.703125 -59.84375 13.75 -59.84375 Z M 13.75 -38.28125 C 9.796875 -38.28125 6.484375 -34.984375 6.484375 -31.015625 C 6.484375 -27.0625 9.796875 -23.765625 13.75 -23.765625 C 17.703125 -23.765625 21.015625 -27.0625 21.015625 -31.015625 C 21.015625 -34.984375 17.703125 -38.28125 13.75 -38.28125 Z M 13.75 -38.28125 "></path>
+</symbol>
+<symbol overflow="visible" id="hangul-tone:id2:glyph0-2">
+<path style="stroke:none;" d="M 44.109375 -77.875 C 40.265625 -77.546875 20.015625 -77.328125 16.171875 -77.4375 C 13.859375 -77.4375 9.796875 -77.765625 6.9375 -78.203125 L 6.15625 -76.890625 C 6.046875 -76.671875 6.046875 -76.234375 6.484375 -75.796875 C 8.578125 -74.03125 11.875 -72.046875 14.734375 -70.953125 C 16.609375 -71.609375 20.34375 -72.375 22.4375 -72.484375 C 25.625 -72.703125 43.015625 -72.9375 46.3125 -72.9375 C 48.625 -72.9375 53.34375 -72.703125 55.328125 -72.59375 C 56.203125 -73.046875 57.53125 -74.6875 57.53125 -76.5625 C 57.53125 -77.109375 57.203125 -77.765625 56.4375 -77.984375 C 54.5625 -78.65625 50.265625 -79.203125 47.296875 -79.3125 Z M 47.078125 -62.265625 L 47.625 -66.546875 C 47.84375 -67.3125 47.515625 -67.984375 46.53125 -68.203125 C 44.328125 -68.859375 40.15625 -69.296875 37.296875 -69.40625 C 36.515625 -69.40625 36.296875 -69.296875 36.1875 -68.859375 L 35.53125 -66.65625 C 37.515625 -66 39.375 -64.796875 40.265625 -63.578125 L 40.59375 -50.59375 L 25.515625 -49.9375 L 24.859375 -58.625 L 25.296875 -62.59375 C 25.40625 -63.359375 25.1875 -63.796875 24.3125 -64.234375 C 22.109375 -65.234375 18.265625 -66.21875 15.515625 -66.65625 C 14.734375 -66.65625 14.515625 -66.4375 14.40625 -66.109375 L 13.421875 -64.125 C 15.625 -63.03125 17.15625 -61.484375 18.046875 -60.0625 L 19.25 -49.828125 L 16.390625 -49.828125 C 13.96875 -49.828125 9.796875 -50.15625 6.8125 -50.703125 L 6.15625 -49.390625 C 5.9375 -49.0625 5.9375 -48.734375 6.375 -48.40625 C 8.578125 -46.53125 11.984375 -44.65625 14.734375 -43.5625 C 16.71875 -44.21875 20.6875 -44.875 22.65625 -45.09375 L 31.015625 -45.546875 L 31.015625 -33.546875 C 24.75 -33 18.921875 -32.5625 14.625 -32.453125 C 11.109375 -32.34375 6.8125 -32.78125 3.40625 -33.4375 L 2.640625 -31.90625 C 2.53125 -31.453125 2.640625 -31.125 2.96875 -30.796875 C 5.71875 -28.59375 9.5625 -26.1875 13.203125 -24.640625 C 15.1875 -25.40625 19.359375 -26.40625 21.671875 -26.515625 C 33.4375 -27.609375 54.671875 -31.015625 65.5625 -33.765625 C 65.671875 -30.46875 65.78125 -27.171875 66.109375 -24.96875 L 70.515625 -24.96875 C 71.828125 -29.265625 72.9375 -36.515625 72.9375 -42.90625 L 72.9375 -52.140625 L 85.6875 -52.359375 L 85.6875 -40.484375 C 85.6875 -36.40625 85.90625 -28.59375 86.34375 -24.859375 L 90.96875 -24.859375 C 92.296875 -29.265625 93.390625 -37.0625 93.390625 -42.90625 L 93.390625 -83.59375 L 93.609375 -88.984375 C 93.71875 -89.984375 93.390625 -90.75 92.296875 -91.078125 C 89.546875 -92.40625 82.9375 -93.71875 79.203125 -93.828125 C 78.4375 -93.828125 78.09375 -93.609375 77.875 -93.171875 L 77.109375 -90.640625 C 80.625 -89.4375 83.9375 -87.5625 85.6875 -85.359375 L 85.6875 -57.203125 L 72.9375 -56.984375 L 72.9375 -78.09375 L 73.15625 -82.9375 C 73.15625 -84.046875 72.8125 -84.59375 71.9375 -85.03125 C 69.296875 -86.234375 63.25 -87.453125 59.84375 -87.5625 C 59.0625 -87.5625 58.625 -87.34375 58.515625 -87.015625 L 57.640625 -84.375 C 60.828125 -83.375 63.90625 -81.625 65.453125 -79.640625 L 65.453125 -37.953125 C 58.734375 -36.625 48.40625 -35.3125 38.28125 -34.203125 L 38.28125 -45.875 L 48.296875 -46.203125 C 50.59375 -46.203125 55.4375 -46.203125 57.421875 -45.984375 C 58.296875 -46.421875 59.515625 -47.84375 59.515625 -49.828125 C 59.515625 -50.375 59.1875 -51.046875 58.40625 -51.265625 C 56.4375 -51.921875 52.140625 -52.46875 49.28125 -52.46875 L 46.96875 -51.484375 Z M 89.984375 13.09375 C 91.1875 8.90625 92.1875 1.65625 92.1875 -2.859375 L 92.40625 -14.40625 L 93.71875 -17.8125 C 93.9375 -18.375 93.9375 -18.8125 93.5 -19.140625 C 92.734375 -19.796875 90.53125 -21.125 89.3125 -21.78125 C 88.875 -22 88.109375 -22 87.671875 -21.78125 L 84.484375 -20.234375 C 76.78125 -19.796875 43.671875 -19.25 38.390625 -19.25 C 35.3125 -19.25 30.90625 -19.578125 27.609375 -20.125 L 26.84375 -18.703125 C 26.734375 -18.265625 26.84375 -18.046875 27.171875 -17.59375 C 29.8125 -15.625 33.328125 -13.75 36.734375 -12.546875 C 39.15625 -13.421875 43.890625 -14.1875 46.53125 -14.296875 C 51.375 -14.625 75.453125 -15.0625 84.375 -15.0625 L 84.375 -0.984375 C 84.375 2.859375 84.59375 9.453125 85.140625 13.09375 Z M 89.984375 13.09375 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hangul-tone:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,0.0)"><g id="hangul-tone:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c0" href="#hangul-tone:id0:glyph0-1"></use>
+  <use x="122.265625" y="128.609375" class="z" href="#hangul-tone:id0:glyph0-2"></use>
+  <use x="122.265625" y="128.609375" class="c1" href="#hangul-tone:id0:glyph0-3"></use>
+  <use x="149.765625" y="128.609375" class="dc" href="#hangul-tone:id0:glyph0-4"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-tone:id1:id1" transform="matrix(1.25,0,0,1.25,344.70703125,0.5859375)"><g id="hangul-tone:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hangul-tone:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hangul-tone:id2:id2" transform="matrix(1.25,0,0,1.25,477.3046875,0.0)"><g id="hangul-tone:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="128.609375" class="c1" href="#hangul-tone:id2:glyph0-1"></use>
+  <use x="43.5" y="128.609375" class="c0" href="#hangul-tone:id2:glyph0-2"></use>
+</g>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 18.4.6 </span><span class="caption-text">Tone-mark reordering</span><a class="headerlink" href="#id9" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hangul-tone" onclick='toggleColor("hangul-tone")'>Toggle cluster colors</button></section>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">OpenType<br>Shaping<br>Documents</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=n8willis&repo=opentype-shaping-documents&type=watch&count=True&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+<h3>Contents</h3>
+<ul class="current">
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/index.html">Overview</a>
+  </li>
+  <li class="toctree-l1 static-nav static-nav-heading">
+    Script shaping
+    <ul class="current">
+      <li class="toctree-l2 static-nav static-nav-heading">
+	Indic Model
+	<ul class="current">
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-indic-general.html">Indic general</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-devanagari.html">Devanagari</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-bengali.html">Bengali</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-gujarati.html">Gujarati</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-gurmukhi.html">Gurmukhi</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-kannada.html">Kannada</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-malayalam.html">Malayalam</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-oriya.html">Oriya</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-sinhala.html">Sinhala</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-tamil.html">Tamil</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-telugu.html">Telugu</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-vedic-extensions.html">Vedic Extensions</a>
+	  </li>
+	</ul>
+      </li>
+      <li class="toctree-l2 static-nav static-nav-heading">
+	Arabic Model
+	<ul class="current">
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-arabic-general.html">Arabic general</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-arabic.html">Arabic</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-nko.html">N'Ko</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-syriac.html">Syriac</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-mongolian.html">Mongolian</a>
+	  </li>
+	</ul>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-hangul.html">Hangul</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-hebrew.html">Hebrew</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-khmer.html">Khmer</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-myanmar.html">Myanmar</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-thai-lao.html">Thai and Lao</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-tibetan.html">Tibetan</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-use.html">Universal Shaping Engine</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-default.html">Default scripts</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-emoji.html">Emoji</a>
+      </li>
+    </ul>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/opentype-shaping-normalization.html">Normalization</a>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/notes/README.html">Notes</a>
+    <ul>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/notes/uniscribe-bug-compatibility.html">Uniscribe compatibility</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/notes/ragel-machine-notation.html">Ragel state-machine operators</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/notes/emoji-implementation.html">Emoji implementation</a>
+      </li>
+    </ul>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/character-tables/character-tables-index.html">Character Tables</a>
+    <ul>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-arabic.html">Arabic</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-bengali.html">Bengali</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-devanagari.html">Devanagari</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-gujarati.html">Gujarati</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-gurmukhi.html">Gurmukhi</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-hangul.html">Hangul</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-hebrew.html">Hebrew</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-kannada.html">Kannada</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-khmer.html">Khmer</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-lao.html">Lao</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-malayalam.html">Malayalam</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-mongolian.html">Mongolian</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-myanmar.html">Myanmar</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-nko.html">N'Ko</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-oriya.html">Oriya</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-sinhala.html">Sinhala</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-syriac.html">Syriac</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-tamil.html">Tamil</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-telugu.html">Telugu</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-thai.html">Thai</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-tibetan.html">Tibetan</a>
+      </li>
+    </ul>    
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/errata.html">Errata</a>
+  </li>
+</ul>
+
+<hr>
+
+<ul class="extra-links">
+  <li class="toctree-l1 static-nav">
+    <a class="reference external" href="https://github.com/n8willis/opentype-shaping-documents/issues">GitHub issues</a>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference external" href="https://github.com/n8willis/opentype-shaping-documents/blob/master/BUILD.md">Build process</a>
+  </li>
+</ul>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/opentype-shaping-hangul.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2022, Sponsored by YesLogic.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/opentype-shaping-hangul.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

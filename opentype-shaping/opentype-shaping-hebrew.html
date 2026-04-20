@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>19. Hebrew script shaping in OpenType &#8212; OpenType&lt;br&gt;Shaping&lt;br&gt;Documents 0.9alpha1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=4fdef1ce" />
+    <script src="_static/documentation_options.js?v=3c7e0f13"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/toggleSvgColors.js?v=b5535ca0"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="20. Khmer shaping in OpenType" href="opentype-shaping-khmer.html" />
+    <link rel="prev" title="18. Hangul script shaping in OpenType" href="opentype-shaping-hangul.html" />
+  
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <link rel="preload" href="/images/color-filters.svg" as="image"/><section id="hebrew-script-shaping-in-opentype">
+<h1><span class="section-number">19. </span>Hebrew script shaping in OpenType<a class="headerlink" href="#hebrew-script-shaping-in-opentype" title="Link to this heading">¶</a></h1>
+<p>This document details the general shaping procedure shared by all
+Hebrew script styles, and defines the common pieces that style-specific
+implementations share.</p>
+<p><strong>Contents</strong></p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#general-information">General information</a></p></li>
+<li><p><a class="reference internal" href="#terminology">Terminology</a></p></li>
+<li><p><a class="reference internal" href="#glyph-classification">Glyph classification</a></p>
+<ul>
+<li><p><a class="reference internal" href="#mark-classification">Mark classification</a></p></li>
+<li><p><a class="reference internal" href="#character-tables">Character tables</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#the-hebr-shaping-model">The <code class="docutils literal notranslate"><span class="pre">&lt;hebr&gt;</span></code> shaping model</a></p>
+<ul>
+<li><p><a class="reference internal" href="#stage-1-compound-character-composition-and-decomposition">Stage 1: Compound character composition and decomposition</a></p></li>
+<li><p><a class="reference internal" href="#stage-2-composing-any-alphabetic-presentation-forms">Stage 2: Composing any Alphabetic Presentation forms</a></p></li>
+<li><p><a class="reference internal" href="#stage-3-applying-the-language-form-substitution-features-from-gsub">Stage 3: Applying the language-form substitution features from <abbr>GSUB</abbr></a></p></li>
+<li><p><a class="reference internal" href="#stage-4-applying-the-typographic-form-substitution-features-from-gsub">Stage 4: Applying the typographic-form substitution features from <abbr>GSUB</abbr></a></p></li>
+<li><p><a class="reference internal" href="#stage-5-applying-the-positioning-features-from-gpos">Stage 5: Applying the positioning features from <abbr>GPOS</abbr></a></p></li>
+</ul>
+</li>
+</ul>
+<section id="general-information">
+<h2><span class="section-number">19.1. </span>General information<a class="headerlink" href="#general-information" title="Link to this heading">¶</a></h2>
+<p>The Hebrew script is used to write multiple languages, including
+Hebrew, Yiddish, and Judezmo.</p>
+<p>Hebrew is written (and, therefore, rendered) from right to
+left. Shaping engines must track the directionality of the text run
+when scripts of different direction are mixed.</p>
+<p>The Hebrew script tag defined in OpenType is <code class="docutils literal notranslate"><span class="pre">&lt;hebr&gt;</span></code>. Apart from the
+fact that Hebrew uses right-to-left directionality, the shaping
+process for <code class="docutils literal notranslate"><span class="pre">&lt;hebr&gt;</span></code> is identical to the default script-shaping
+model.</p>
+<blockquote>
+<div><p>Note: The Letterlike Symbols block in Unicode includes four
+codepoints corresponding to mathematical symbols based on Hebrew
+letters.</p>
+<p>These codepoints are not expected to occur within valid Hebrew text
+runs. In addition, because these codepoints are defined for usage in
+mathematical expressions, they are designated as using left-to-right
+directionality.</p>
+</div></blockquote>
+</section>
+<section id="terminology">
+<h2><span class="section-number">19.2. </span>Terminology<a class="headerlink" href="#terminology" title="Link to this heading">¶</a></h2>
+<p>OpenType shaping uses a standard set of terms for elements of the
+Hebrew script. The terms used colloquially in any particular language
+may vary, however, potentially causing confusion.</p>
+<p><strong>Base</strong> glyph or character is the standard term for a Hebrew
+character that is capable of taking a diacritical mark.</p>
+<p>Most of the base characters in Hebrew are consonants, although some
+base characters are used to represent vowels in certain contexts.</p>
+<p>Vowels that are not represented with base characters are frequently
+omitted from the text run entirely. Alternatively, such vowels may
+appear as marks called <strong>niqqud</strong>. Niqqud are also referred to as
+<strong>points</strong> in the Unicode standard.</p>
+<p>Pronunciation marks, such as the dot used to distinguish “Shin” from
+“Sin” are also considered <strong>niqqud</strong>. Niqqud are typically positioned
+above or below the base character.</p>
+<p><strong>Dagesh</strong> is the term for a particular diacritic that alters the
+pronunciation of a consonant. The dagesh is distinctive for being
+positioned inside the consonant glyph. Other Hebrew diacritics are
+positioned either above or below the base character.</p>
+<p>Hebrew also includes a sizable set of <strong>cantillation marks</strong>, in
+addition to vowel, diacritical, and pronunciation marks. Cantillation
+marks are also referred to as <strong>tropes</strong>.</p>
+</section>
+<section id="glyph-classification">
+<h2><span class="section-number">19.3. </span>Glyph classification<a class="headerlink" href="#glyph-classification" title="Link to this heading">¶</a></h2>
+<p>Because <code class="docutils literal notranslate"><span class="pre">&lt;hebr&gt;</span></code> text runs do not involve reordering or syllable
+identification, Hebrew base characters do not require further
+classification for script-shaping purposes.</p>
+<p>Five Hebrew letters have special word-final forms. Each of these is
+encoded separately in the Hebrew block. They are regarded as
+contextual variants, not as distinct letters. The Hebrew block also
+includes several digraphs that are used only when writing the Yiddish
+languages.</p>
+<p>Because these word-final forms and digraphs are separately encoded,
+fonts do not implement <abbr title="Glyph Substitution table">GSUB</abbr> substitutions to provide access to them.</p>
+<section id="mark-classification">
+<h3><span class="section-number">19.3.1. </span>Mark classification<a class="headerlink" href="#mark-classification" title="Link to this heading">¶</a></h3>
+<p>Because Hebrew text may include several types of mark (vowel niqqud,
+cantillation marks, pronunciation marks) positioned on a base
+character, sequences of adjacent marks may need to be reordered.</p>
+<p>The Unicode standard defines a <em>canonical combining class</em> for each
+codepoint that is used whenever a sequence needs to be sorted into
+canonical order.</p>
+<p>Hebrew marks all belong to standard combining classes. Most, but not
+all, cantillation marks are assigned to the generic below-base (220)
+or above-base (230) combining classes. Niqqud are assigned to distinct
+combining classes designed to enforce orthographically correct
+ordering:</p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-number">Table 19.3.1 </span><span class="caption-text">Mark-classification table</span><a class="headerlink" href="#id1" title="Link to this table">¶</a></caption>
+<thead>
+<tr class="row-odd"><th class="head text-left"><p>Codepoint</p></th>
+<th class="head text-left"><p>Combining class</p></th>
+<th class="head text-left"><p>Glyph</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+0591</span></code></p></td>
+<td class="text-left"><p>220</p></td>
+<td class="text-left"><p>֑ Etnahta</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+0592</span></code></p></td>
+<td class="text-left"><p>230</p></td>
+<td class="text-left"><p>֒ Segol</p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+05B0</span></code></p></td>
+<td class="text-left"><p>10</p></td>
+<td class="text-left"><p>ְ Sheva</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+05B2</span></code></p></td>
+<td class="text-left"><p>12</p></td>
+<td class="text-left"><p>ֲ Hataf Patah</p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+05B9</span></code></p></td>
+<td class="text-left"><p>19</p></td>
+<td class="text-left"><p>ֹ Holam</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+05BF</span></code></p></td>
+<td class="text-left"><p>23</p></td>
+<td class="text-left"><p>ֿ Rafe</p></td>
+</tr>
+</tbody>
+</table>
+<p>The numeric values of these combining classes are used during Unicode
+normalization.</p>
+</section>
+<section id="character-tables">
+<h3><span class="section-number">19.3.2. </span>Character tables<a class="headerlink" href="#character-tables" title="Link to this heading">¶</a></h3>
+<p>The Hebrew block in Unicode contains the codepoints required to
+represent text in all languages written using Hebrew.</p>
+<p>The Alphabetic Presentation Forms block in Unicode includes 46
+additional codepoints for Hebrew. Included are several precomposed
+combinations of base characters and marks and the “Alef Lamed”
+ligature, any of which may occur in <code class="docutils literal notranslate"><span class="pre">&lt;hebr&gt;</span></code> text runs. Glyphs for
+these presentation forms may be provided by fonts that do not
+implement the corresponding mark-to-base and ligature features in
+OpenType <abbr title="Glyph Substitution table">GSUB</abbr> and <abbr title="Glyph Positioning table">GPOS</abbr> tables.</p>
+<p>The Alphabetic Presentation Forms block also includes a set of eight
+“wide” variants of standard Hebrew characters (<code class="docutils literal notranslate"><span class="pre">U+FB21</span></code> through
+<code class="docutils literal notranslate"><span class="pre">U+FB28</span></code>) and a variant form of “Ayin” (<code class="docutils literal notranslate"><span class="pre">U+FB20</span></code>), for backwards
+compatibility with retired file-encoding standards. New usage of these
+codepoints is not recommended and they are unlikely to occur in
+contemporary documents.</p>
+<p>Consequently, unless a software application is required to support
+specific stores of documents that are known to have used these older
+encodings, the shaping engine should not be expected to handle any
+text runs incorporating these backwards-compatibility variant
+codepoints.</p>
+<p>Separate character tables are provided for the Hebrew block, the
+Hebrew letters included in the Alphabetic Presentation Forms block,
+and for other miscellaneous characters that are used in <code class="docutils literal notranslate"><span class="pre">&lt;hebr&gt;</span></code> text
+runs:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="character-tables/character-tables-hebrew.html#hebrew-character-table"><span class="std std-ref">Hebrew character table</span></a></p></li>
+<li><p><a class="reference internal" href="character-tables/character-tables-hebrew.html#alphabetic-presentation-forms-character-table"><span class="std std-ref">Alphabetic Presentation Forms (Hebrew) character table</span></a></p></li>
+<li><p><a class="reference internal" href="character-tables/character-tables-hebrew.html#miscellaneous-character-table"><span class="std std-ref">Miscellaneous character table</span></a></p></li>
+</ul>
+<p>The tables list each codepoint along with its Unicode general
+category. For marks, the table lists the codepoint’s mark combining
+class. The codepoint’s Unicode name and an example glyph are also provided.</p>
+<p>For example:</p>
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-number">Table 19.3.2 </span><span class="caption-text">Example character table</span><a class="headerlink" href="#id2" title="Link to this table">¶</a></caption>
+<thead>
+<tr class="row-odd"><th class="head text-left"><p>Codepoint</p></th>
+<th class="head text-left"><p>Unicode category</p></th>
+<th class="head text-left"><p>Mark class</p></th>
+<th class="head text-left"><p>Glyph</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+05D0</span></code></p></td>
+<td class="text-left"><p>Letter</p></td>
+<td class="text-left"><p><em>0</em></p></td>
+<td class="text-left"><p>א Alef</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+05C1</span></code></p></td>
+<td class="text-left"><p>Mark [Mn]</p></td>
+<td class="text-left"><p>24</p></td>
+<td class="text-left"><p>ׁ Point Shin Dot</p></td>
+</tr>
+</tbody>
+</table>
+<p>Codepoints with no assigned meaning are
+designated as <em>unassigned</em> in the <em>Unicode category</em> column.</p>
+<!--- Character table example and explanation --->
+<p>Other important characters that may be encountered when shaping runs
+of Hebrew text include the dotted-circle placeholder (<code class="docutils literal notranslate"><span class="pre">U+25CC</span></code>), the
+combining grapheme joiner (<code class="docutils literal notranslate"><span class="pre">U+034F</span></code>), the zero-width joiner (<code class="docutils literal notranslate"><span class="pre">U+200D</span></code>)
+and zero-width non-joiner (<code class="docutils literal notranslate"><span class="pre">U+200C</span></code>), the left-to-right text marker
+(<code class="docutils literal notranslate"><span class="pre">U+200E</span></code>) and right-to-left text marker (<code class="docutils literal notranslate"><span class="pre">U+200F</span></code>), and the no-break
+space (<code class="docutils literal notranslate"><span class="pre">U+00A0</span></code>).</p>
+<p>The dotted-circle placeholder is frequently used when displaying a
+vowel or diacritical mark in isolation. Real-world text documents may
+also use other characters, such as hyphens or dashes, in a similar
+placeholder fashion; shaping engines should cope with this situation
+gracefully.</p>
+<p>The combining grapheme joiner (<abbr>CGJ</abbr>), zero-width joiner (<abbr>ZWJ</abbr>), and
+zero-width non-joiner (<abbr>ZWNJ</abbr>) may be used to alter the
+order in which adjacent marks are positioned during the
+mark-reordering stage, in order to adhere to the needs of a
+non-default language orthography.</p>
+<!--- combining grapheme joiner explanation --->
+<!--- Zero-Width Non Joiner explanation --->
+<p>The right-to-left mark (<abbr>RLM</abbr>) and left-to-right mark (<abbr>LRM</abbr>) are used by
+the Unicode bidirectionality algorithm (BiDi) to indicate the points
+in a text run at which the writing direction changes.</p>
+<!--- How shaping is affected by the <abbr title="Left-To-Right">LTR</abbr> and <abbr title="Right-To-Left">RTL</abbr> markers explanation --->
+<p>The no-break space may be used to display those codepoints that
+are defined as non-spacing (such as niqqud or cantillation marks) in an
+isolated context, as an alternative to displaying them superimposed on
+the dotted-circle placeholder.</p>
+</section>
+</section>
+<section id="the-hebr-shaping-model">
+<h2><span class="section-number">19.4. </span>The <code class="docutils literal notranslate"><span class="pre">&lt;hebr&gt;</span></code> shaping model<a class="headerlink" href="#the-hebr-shaping-model" title="Link to this heading">¶</a></h2>
+<p>Processing a run of <code class="docutils literal notranslate"><span class="pre">&lt;hebr&gt;</span></code> text involves seven top-level stages:</p>
+<ol class="arabic simple">
+<li><p>Compound character composition and decomposition</p></li>
+<li><p>Composing any Alphabetic Presentation forms</p></li>
+<li><p>Applying the language-form substitution features from <abbr>GSUB</abbr></p></li>
+<li><p>Applying the typographic-form substitution features from <abbr>GSUB</abbr></p></li>
+<li><p>Applying the positioning features from <abbr>GPOS</abbr></p></li>
+</ol>
+<section id="stage-1-compound-character-composition-and-decomposition">
+<h3><span class="section-number">19.4.1. </span>Stage 1: Compound character composition and decomposition<a class="headerlink" href="#stage-1-compound-character-composition-and-decomposition" title="Link to this heading">¶</a></h3>
+<p>In this stage, the <code class="docutils literal notranslate"><span class="pre">ccmp</span></code> feature from <abbr title="Glyph Positioning table">GPOS</abbr> is applied and the
+resulting sequence of codepoints should be checked for correct mark
+order.</p>
+<blockquote>
+<div><p>Note: Shaping engines may have already applied Unicode normalization
+compose or decompose codepoints before beginning the shaping
+process. Due to the Alphabetic Presentation Forms composition in
+stage two, however, the <code class="docutils literal notranslate"><span class="pre">ccmp</span></code> feature and any necessary mark
+reordering must be performed here, as Alphabetic Presentation Forms
+are not handled by Unicode normalization.</p>
+</div></blockquote>
+<section id="stage-1-step-1-ccmp">
+<h4>Stage 1, step 1: ccmp<a class="headerlink" href="#stage-1-step-1-ccmp" title="Link to this heading">¶</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">ccmp</span></code> feature allows a font to substitute</p>
+<ul class="simple">
+<li><p>mark-and-base sequences with a pre-composed glyph including both
+the mark and the base (as is done in with a ligature substitution)</p></li>
+<li><p>individual compound glyphs with the equivalent sequence of
+decomposed glyphs</p></li>
+</ul>
+<p>If present, these composition and decomposition substitutions must be
+performed before applying any other <abbr title="Glyph Substitution table">GSUB</abbr> or <abbr title="Glyph Positioning table">GPOS</abbr> lookups, because
+those lookups may be written to match only the <code class="docutils literal notranslate"><span class="pre">ccmp</span></code>-substituted
+glyphs.</p>
+<figure class="align-default" id="id3">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hebrew-ccmp" viewbox="0 0 302.24609375 201.40625" class="shaping-demo inline-svg greyscale-svg" names="hebrew-ccmp" uri="images/hebrew/hebrew-ccmp.svg" alt="ccmp composition" title="ccmp composition" original_uri="/images/hebrew/hebrew-ccmp.svg">
+  <defs><g>
+<symbol overflow="visible" id="hebrew-ccmp:id0:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-ccmp:id0:glyph0-1">
+<path style="stroke:none;" d="M 9.125 -73.703125 C 11.65625 -73.703125 13.3125 -75.234375 13.3125 -78.4375 C 13.3125 -81.515625 11.65625 -83.046875 9.125 -83.046875 C 6.59375 -83.046875 5.0625 -81.515625 5.0625 -78.4375 C 5.0625 -75.015625 6.59375 -73.703125 9.125 -73.703125 Z M 9.125 -73.703125 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-ccmp:id0:glyph0-2">
+<path style="stroke:none;" d="M 20.015625 0.765625 L 21.671875 0.765625 C 24.640625 -0.4375 25.953125 -1.546875 27.609375 -3.296875 L 26.1875 -58.84375 C 26.0625 -63.46875 24.75 -65.125 21.015625 -65.125 L 14.734375 -65.125 C 10.890625 -65.125 8.90625 -67.3125 8.90625 -70.84375 L 8.90625 -71.171875 L 5.9375 -71.171875 C 4.734375 -65.671875 4.40625 -63.46875 4.40625 -61.046875 C 4.40625 -55.328125 6.265625 -53.125 9.796875 -53.125 L 17.046875 -53.125 C 19.578125 -53.125 20.015625 -52.03125 20.015625 -49.171875 Z M 20.015625 0.765625 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-ccmp:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-ccmp:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-ccmp:id2:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-ccmp:id2:glyph0-1">
+<path style="stroke:none;" d="M -0.4375 -73.703125 C 2.09375 -73.703125 3.734375 -75.234375 3.734375 -78.4375 C 3.734375 -81.515625 2.09375 -83.046875 -0.4375 -83.046875 C -2.96875 -83.046875 -4.515625 -81.515625 -4.515625 -78.4375 C -4.515625 -75.015625 -2.96875 -73.703125 -0.4375 -73.703125 Z M 20.015625 0.765625 L 21.671875 0.765625 C 24.640625 -0.4375 25.953125 -1.546875 27.609375 -3.296875 L 26.1875 -58.84375 C 26.0625 -63.46875 24.75 -65.125 21.015625 -65.125 L 14.734375 -65.125 C 10.890625 -65.125 8.90625 -67.3125 8.90625 -70.84375 L 8.90625 -71.171875 L 5.9375 -71.171875 C 4.734375 -65.671875 4.40625 -63.46875 4.40625 -61.046875 C 4.40625 -55.328125 6.265625 -53.125 9.796875 -53.125 L 17.046875 -53.125 C 19.578125 -53.125 20.015625 -52.03125 20.015625 -49.171875 Z M 20.015625 0.765625 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hebrew-ccmp:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,16.66015625)"><g id="hebrew-ccmp:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="100.5625" class="c1" href="#hebrew-ccmp:id0:glyph0-1"></use>
+  <use x="16" y="100.5625" class="c0" href="#hebrew-ccmp:id0:glyph0-2"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-ccmp:id1:id1" transform="matrix(1.25,0,0,1.25,84.82421875,0.0)"><g id="hebrew-ccmp:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hebrew-ccmp:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-ccmp:id2:id2" transform="matrix(1.25,0,0,1.25,217.421875,16.66015625)"><g id="hebrew-ccmp:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="100.5625" class="c2" href="#hebrew-ccmp:id2:glyph0-1"></use>
+</g>
+</g>
+</g>
+</svg>
+<figcaption>
+<p><span class="caption-number">Fig. 19.4.1 </span><span class="caption-text">ccmp composition</span><a class="headerlink" href="#id3" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hebrew-ccmp" onclick='toggleColor("hebrew-ccmp")'>Toggle cluster colors</button></section>
+<section id="stage-1-step-2-mark-reordering">
+<h4>Stage 1, step 2: Mark reordering<a class="headerlink" href="#stage-1-step-2-mark-reordering" title="Link to this heading">¶</a></h4>
+<p>Sequences of adjacent marks must be reordered so that they appear in
+canonical order before the mark-to-base and mark-to-mark positioning
+features from <abbr title="Glyph Positioning table">GPOS</abbr> can be correctly applied.</p>
+<p>For <code class="docutils literal notranslate"><span class="pre">&lt;hebr&gt;</span></code> text runs, normalizing the sequence of marks using the
+Unicode <em>canonical combining class</em> of each mark should be sufficient.</p>
+</section>
+</section>
+<section id="stage-2-composing-any-alphabetic-presentation-forms">
+<h3><span class="section-number">19.4.2. </span>Stage 2: Composing any Alphabetic Presentation forms<a class="headerlink" href="#stage-2-composing-any-alphabetic-presentation-forms" title="Link to this heading">¶</a></h3>
+<p>If the active font includes glyphs for precomposed mark-and-base
+codepoints from the Alphabetic Presentation Forms block, these
+precomposed glyphs should be preferred over sequences of individual
+base glyphs and marks positioned with <abbr title="Glyph Positioning table">GPOS</abbr>.</p>
+<p>The codepoints in question are not included in the canonical Unicode
+compositions, so the shaping engine should substitute them at this
+stage, before proceeding with the shaping process.</p>
+<p>The individual base and mark sequences that should compose to each
+precomposed Hebrew mark-and-base codepoint in the Alphabetic
+Presentation Forms block is listed in <em>Composition</em> column of the
+<a class="reference internal" href="character-tables/character-tables-hebrew.html#alphabetic-presentation-forms-character-table"><span class="std std-ref">Alphabetic Presentation Forms character
+table</span></a>.</p>
+<p>For example:</p>
+<table class="docutils align-default" id="id4">
+<caption><span class="caption-number">Table 19.4.1 </span><span class="caption-text">Example character table for Alphabetic Presentation forms</span><a class="headerlink" href="#id4" title="Link to this table">¶</a></caption>
+<thead>
+<tr class="row-odd"><th class="head text-left"><p>Codepoint</p></th>
+<th class="head text-left"><p>Unicode category</p></th>
+<th class="head text-left"><p>Mark class</p></th>
+<th class="head text-left"><p>Composition</p></th>
+<th class="head text-left"><p>Glyph</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+FB1D</span></code></p></td>
+<td class="text-left"><p>Letter</p></td>
+<td class="text-left"><p><em>0</em></p></td>
+<td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+05D9</span></code>,<code class="docutils literal notranslate"><span class="pre">U+05B4</span></code></p></td>
+<td class="text-left"><p>יִ Yod With Hiriq</p></td>
+</tr>
+<tr class="row-odd"><td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+<td class="text-left"><p></p></td>
+</tr>
+<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+FB2B</span></code></p></td>
+<td class="text-left"><p>Letter</p></td>
+<td class="text-left"><p><em>0</em></p></td>
+<td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">U+05E9</span></code>,<code class="docutils literal notranslate"><span class="pre">U+05C2</span></code></p></td>
+<td class="text-left"><p>שׂ Shin With Sin Dot</p></td>
+</tr>
+</tbody>
+</table>
+<p>Two of the precomposed glyphs, “Shin With Dagesh And Shin Dot”
+(<code class="docutils literal notranslate"><span class="pre">U+FB2C</span></code>) and “Shin With Dagesh And Sin Dot” (<code class="docutils literal notranslate"><span class="pre">U+FB2D</span></code>), have
+multiple possible composing sequences. All of the other precomposed
+glyphs in the block have a single composing sequence.</p>
+<blockquote>
+<div><p>Note: the active font may implement these compositions in a <code class="docutils literal notranslate"><span class="pre">ccmp</span></code>
+lookup in <abbr title="Glyph Substitution table">GSUB</abbr>, in which case this stage will involve no additional work.</p>
+</div></blockquote>
+<figure class="align-default" id="id5">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hebrew-apf" viewbox="0 0 301.69921875 201.40625" class="shaping-demo inline-svg greyscale-svg" names="hebrew-apf" uri="images/hebrew/hebrew-apf.svg" alt="Alphabetic Presentation forms composition" title="Alphabetic Presentation forms composition" original_uri="/images/hebrew/hebrew-apf.svg">
+  <defs><g>
+<symbol overflow="visible" id="hebrew-apf:id0:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-apf:id0:glyph0-1">
+<path style="stroke:none;" d="M 9.125 17.046875 C 11.65625 17.046875 13.3125 15.515625 13.3125 12.3125 C 13.3125 9.234375 11.65625 7.703125 9.125 7.703125 C 6.59375 7.703125 5.0625 9.234375 5.0625 12.3125 C 5.0625 15.625 6.59375 17.046875 9.125 17.046875 Z M 9.125 17.046875 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-apf:id0:glyph0-2">
+<path style="stroke:none;" d="M 16.0625 -28.9375 L 23.203125 -37.40625 C 26.953125 -41.90625 30.140625 -48.515625 30.140625 -55.21875 C 30.140625 -61.484375 27.5 -65.125 22 -65.125 L 14.734375 -65.125 C 11.109375 -65.125 8.90625 -66.875 8.90625 -70.734375 L 8.90625 -71.171875 L 5.9375 -71.171875 C 4.734375 -65.015625 4.40625 -63.46875 4.40625 -61.046875 C 4.40625 -55.328125 6.265625 -53.125 9.796875 -53.125 L 19.46875 -53.125 C 21.78125 -53.125 22.328125 -51.8125 22.328125 -49.71875 C 22.328125 -46.09375 20.90625 -43.125 15.625 -36.953125 L 12.203125 -33 Z M 16.0625 -28.9375 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-apf:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-apf:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-apf:id2:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-apf:id2:glyph0-1">
+<path style="stroke:none;" d="M 16.0625 -28.9375 L 23.203125 -37.40625 C 26.953125 -41.90625 30.140625 -48.515625 30.140625 -55.21875 C 30.140625 -61.484375 27.5 -65.125 22 -65.125 L 14.734375 -65.125 C 11.109375 -65.125 8.90625 -66.875 8.90625 -70.734375 L 8.90625 -71.171875 L 5.9375 -71.171875 C 4.734375 -65.015625 4.40625 -63.46875 4.40625 -61.046875 C 4.40625 -55.328125 6.265625 -53.125 9.796875 -53.125 L 19.46875 -53.125 C 21.78125 -53.125 22.328125 -51.8125 22.328125 -49.71875 C 22.328125 -46.09375 20.90625 -43.125 15.625 -36.953125 L 12.203125 -33 Z M 16.171875 -12.09375 C 18.703125 -12.09375 20.34375 -13.640625 20.34375 -16.828125 C 20.34375 -19.90625 18.703125 -21.453125 16.171875 -21.453125 C 13.640625 -21.453125 12.09375 -19.90625 12.09375 -16.828125 C 12.09375 -13.53125 13.640625 -12.09375 16.171875 -12.09375 Z M 16.171875 -12.09375 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hebrew-apf:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,16.66015625)"><g id="hebrew-apf:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="24.90625" y="100.5625" class="c1" href="#hebrew-apf:id0:glyph0-1"></use>
+  <use x="16" y="100.5625" class="c0" href="#hebrew-apf:id0:glyph0-2"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-apf:id1:id1" transform="matrix(1.25,0,0,1.25,84.55078125,0.0)"><g id="hebrew-apf:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hebrew-apf:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-apf:id2:id2" transform="matrix(1.25,0,0,1.25,217.1484375,16.66015625)"><g id="hebrew-apf:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="100.5625" class="c2" href="#hebrew-apf:id2:glyph0-1"></use>
+</g>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 19.4.2 </span><span class="caption-text">Alphabetic Presentation forms composition</span><a class="headerlink" href="#id5" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hebrew-apf" onclick='toggleColor("hebrew-apf")'>Toggle cluster colors</button></section>
+<section id="stage-3-applying-the-language-form-substitution-features-from-gsub">
+<h3><span class="section-number">19.4.3. </span>Stage 3: Applying the language-form substitution features from <abbr>GSUB</abbr><a class="headerlink" href="#stage-3-applying-the-language-form-substitution-features-from-gsub" title="Link to this heading">¶</a></h3>
+<p>The language-substitution phase applies mandatory substitution
+features using the rules in the font’s <abbr title="Glyph Substitution table">GSUB</abbr> table. In preparation for
+this stage, glyph sequences should be tagged for possible application
+of <abbr title="Glyph Substitution table">GSUB</abbr> features.</p>
+<p>The order in which these substitutions must be performed is fixed for
+all scripts implemented in the Hebrew shaping model:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>locl
+</pre></div>
+</div>
+<section id="stage-3-step-1-locl">
+<h4>Stage 3, step 1: locl<a class="headerlink" href="#stage-3-step-1-locl" title="Link to this heading">¶</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">locl</span></code> feature replaces default glyphs with any language-specific
+variants, based on examining the language setting of the text run.</p>
+<blockquote>
+<div><p>Note: Strictly speaking, the use of localized-form substitutions is
+not part of the shaping process, but of the localization process,
+and could take place at an earlier point while handling the text
+run. However, shaping engines are expected to complete the
+application of the <code class="docutils literal notranslate"><span class="pre">locl</span></code> feature before applying the subsequent
+<abbr title="Glyph Substitution table">GSUB</abbr> substitutions in the following steps.</p>
+</div></blockquote>
+</section>
+</section>
+<section id="stage-4-applying-the-typographic-form-substitution-features-from-gsub">
+<h3><span class="section-number">19.4.4. </span>Stage 4: Applying the typographic-form substitution features from <abbr>GSUB</abbr><a class="headerlink" href="#stage-4-applying-the-typographic-form-substitution-features-from-gsub" title="Link to this heading">¶</a></h3>
+<p>The typographic-substitution phase applies optional substitution
+features using the rules in the font’s <abbr title="Glyph Substitution table">GSUB</abbr> table.</p>
+<p>The order in which these substitutions must be performed is fixed for
+all scripts implemented in the Hebrew shaping model:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>liga
+dlig
+</pre></div>
+</div>
+<section id="stage-4-step-1-liga">
+<h4>Stage 4, step 1: liga<a class="headerlink" href="#stage-4-step-1-liga" title="Link to this heading">¶</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">liga</span></code> feature substitutes standard, optional ligatures that are on
+by default. Substitutions made by <code class="docutils literal notranslate"><span class="pre">liga</span></code> may be disabled by
+application-level user interfaces.</p>
+<figure class="align-default" id="id6">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hebrew-liga" viewbox="0 0 375.95703125 201.40625" class="shaping-demo inline-svg greyscale-svg" names="hebrew-liga" uri="images/hebrew/hebrew-liga.svg" alt="Standard ligature substitution" title="Standard ligature substitution" original_uri="/images/hebrew/hebrew-liga.svg">
+  <defs><g>
+<symbol overflow="visible" id="hebrew-liga:id0:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-liga:id0:glyph0-1">
+<path style="stroke:none;" d="M 5.171875 30.359375 L 11 30.03125 L 11 7.703125 L 5.171875 8.03125 Z M 5.171875 30.359375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-liga:id0:glyph0-2">
+<path style="stroke:none;" d=""></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-liga:id0:glyph0-3">
+<path style="stroke:none;" d="M 7.59375 17.046875 C 10.015625 17.046875 11.765625 15.515625 11.765625 12.3125 C 11.765625 9.234375 10.015625 7.703125 7.59375 7.703125 C 5.0625 7.703125 3.40625 9.234375 3.40625 12.3125 C 3.40625 15.625 5.0625 17.046875 7.59375 17.046875 Z M 22.65625 17.046875 C 25.1875 17.046875 26.953125 15.515625 26.953125 12.3125 C 26.953125 9.234375 25.1875 7.703125 22.65625 7.703125 C 20.234375 7.703125 18.59375 9.234375 18.59375 12.3125 C 18.59375 15.625 20.234375 17.046875 22.65625 17.046875 Z M 34.765625 17.046875 C 37.296875 17.046875 39.046875 15.515625 39.046875 12.3125 C 39.046875 9.234375 37.296875 7.703125 34.765625 7.703125 C 32.34375 7.703125 30.6875 9.234375 30.6875 12.3125 C 30.6875 15.625 32.34375 17.046875 34.765625 17.046875 Z M 34.875 30.359375 C 37.40625 30.359375 39.15625 28.8125 39.15625 25.625 C 39.15625 22.4375 37.40625 21.015625 34.875 21.015625 C 32.453125 21.015625 30.6875 22.4375 30.6875 25.625 C 30.6875 28.9375 32.453125 30.359375 34.875 30.359375 Z M 15.1875 30.359375 C 17.59375 30.359375 19.359375 28.8125 19.359375 25.625 C 19.359375 22.4375 17.59375 21.015625 15.1875 21.015625 C 12.65625 21.015625 10.890625 22.4375 10.890625 25.625 C 10.890625 28.9375 12.65625 30.359375 15.1875 30.359375 Z M 15.1875 30.359375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-liga:id0:glyph0-4">
+<path style="stroke:none;" d="M 35.53125 -56.546875 C 35.53125 -58.40625 34.546875 -59.40625 32.671875 -59.40625 C 30.796875 -59.40625 29.8125 -58.40625 29.8125 -56.546875 C 29.8125 -54.5625 30.796875 -53.5625 32.671875 -53.5625 C 34.546875 -53.5625 35.53125 -54.5625 35.53125 -56.546875 Z M 44.875 -54.5625 C 44.875 -56.546875 44 -57.53125 42.125 -57.53125 C 40.046875 -57.53125 39.046875 -56.546875 39.046875 -54.5625 C 39.046875 -52.6875 40.046875 -51.703125 42.125 -51.703125 C 44 -51.703125 44.875 -52.6875 44.875 -54.5625 Z M 26.296875 -54.5625 C 26.296875 -56.546875 25.296875 -57.53125 23.3125 -57.53125 C 21.453125 -57.53125 20.453125 -56.546875 20.453125 -54.5625 C 20.453125 -52.6875 21.453125 -51.703125 23.3125 -51.703125 C 25.296875 -51.703125 26.296875 -52.6875 26.296875 -54.5625 Z M 52.796875 -49.28125 C 52.796875 -51.265625 51.921875 -52.25 50.046875 -52.25 C 48.0625 -52.25 47.078125 -51.265625 47.078125 -49.28125 C 47.078125 -47.40625 48.0625 -46.421875 50.046875 -46.421875 C 51.921875 -46.421875 52.796875 -47.40625 52.796875 -49.28125 Z M 18.375 -49.28125 C 18.375 -51.265625 17.375 -52.25 15.40625 -52.25 C 13.53125 -52.25 12.546875 -51.265625 12.546875 -49.171875 C 12.546875 -47.296875 13.53125 -46.421875 15.40625 -46.421875 C 17.375 -46.421875 18.375 -47.40625 18.375 -49.28125 Z M 58.1875 -41.359375 C 58.1875 -43.234375 57.203125 -44.21875 55.328125 -44.21875 C 53.34375 -44.21875 52.359375 -43.234375 52.359375 -41.359375 C 52.359375 -39.375 53.34375 -38.390625 55.21875 -38.390625 C 57.203125 -38.390625 58.1875 -39.375 58.1875 -41.359375 Z M 12.984375 -41.359375 C 12.984375 -43.234375 11.984375 -44.21875 10.125 -44.21875 C 8.140625 -44.21875 7.15625 -43.234375 7.15625 -41.359375 C 7.15625 -39.375 8.140625 -38.390625 10.234375 -38.390625 C 12.09375 -38.390625 12.984375 -39.375 12.984375 -41.359375 Z M 60.0625 -32.015625 C 60.0625 -33.875 59.1875 -34.875 57.3125 -34.875 C 55.328125 -34.875 54.34375 -33.875 54.34375 -32.015625 C 54.34375 -30.140625 55.328125 -29.15625 57.3125 -29.15625 C 59.1875 -29.15625 60.0625 -30.140625 60.0625 -32.015625 Z M 11.109375 -32.015625 C 11.109375 -33.875 10.125 -34.875 8.25 -34.875 C 6.265625 -34.875 5.28125 -33.875 5.28125 -32.015625 C 5.28125 -30.140625 6.265625 -29.15625 8.25 -29.15625 C 10.125 -29.15625 11.109375 -30.140625 11.109375 -32.015625 Z M 58.1875 -22.65625 C 58.1875 -24.640625 57.203125 -25.625 55.21875 -25.625 C 53.34375 -25.625 52.359375 -24.640625 52.359375 -22.65625 C 52.359375 -20.796875 53.34375 -19.796875 55.21875 -19.796875 C 57.203125 -19.796875 58.1875 -20.796875 58.1875 -22.65625 Z M 12.984375 -22.65625 C 12.984375 -24.640625 11.984375 -25.625 10.125 -25.625 C 8.140625 -25.625 7.15625 -24.640625 7.15625 -22.65625 C 7.15625 -20.796875 8.140625 -19.796875 10.125 -19.796875 C 11.984375 -19.796875 12.984375 -20.796875 12.984375 -22.65625 Z M 52.796875 -14.625 C 52.796875 -16.609375 51.921875 -17.59375 50.046875 -17.59375 C 48.0625 -17.59375 47.078125 -16.609375 47.078125 -14.625 C 47.078125 -12.765625 48.0625 -11.765625 50.046875 -11.765625 C 51.921875 -11.765625 52.796875 -12.765625 52.796875 -14.625 Z M 18.375 -14.625 C 18.375 -16.609375 17.375 -17.59375 15.40625 -17.59375 C 13.53125 -17.59375 12.546875 -16.609375 12.546875 -14.625 C 12.546875 -12.765625 13.53125 -11.765625 15.40625 -11.765625 C 17.375 -11.765625 18.375 -12.765625 18.375 -14.625 Z M 44.875 -9.34375 C 44.875 -11.328125 44 -12.3125 42.125 -12.3125 C 40.046875 -12.3125 39.046875 -11.328125 39.046875 -9.34375 C 39.046875 -7.484375 40.046875 -6.59375 42.125 -6.59375 C 44 -6.59375 44.875 -7.484375 44.875 -9.34375 Z M 26.296875 -9.5625 C 26.296875 -11.4375 25.296875 -12.3125 23.3125 -12.3125 C 21.453125 -12.3125 20.453125 -11.328125 20.453125 -9.34375 C 20.453125 -7.484375 21.453125 -6.59375 23.3125 -6.59375 C 25.296875 -6.59375 26.296875 -7.59375 26.296875 -9.5625 Z M 35.53125 -7.59375 C 35.53125 -9.453125 34.546875 -10.453125 32.671875 -10.453125 C 30.796875 -10.453125 29.8125 -9.453125 29.8125 -7.59375 C 29.8125 -5.609375 30.796875 -4.625 32.671875 -4.625 C 34.546875 -4.625 35.53125 -5.609375 35.53125 -7.59375 Z M 35.53125 -7.59375 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-liga:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-liga:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-liga:id2:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-liga:id2:glyph0-1">
+<path style="stroke:none;" d="M 30.140625 30.359375 L 35.96875 30.03125 L 35.96875 7.703125 L 30.140625 8.03125 Z M 7.046875 17.046875 C 9.453125 17.046875 11.21875 15.515625 11.21875 12.3125 C 11.21875 9.234375 9.453125 7.703125 7.046875 7.703125 C 4.515625 7.703125 2.859375 9.234375 2.859375 12.3125 C 2.859375 15.625 4.515625 17.046875 7.046875 17.046875 Z M 22.109375 17.046875 C 24.640625 17.046875 26.40625 15.515625 26.40625 12.3125 C 26.40625 9.234375 24.640625 7.703125 22.109375 7.703125 C 19.6875 7.703125 18.046875 9.234375 18.046875 12.3125 C 18.046875 15.625 19.6875 17.046875 22.109375 17.046875 Z M 43.78125 17.046875 C 46.3125 17.046875 48.0625 15.515625 48.0625 12.3125 C 48.0625 9.234375 46.3125 7.703125 43.78125 7.703125 C 41.359375 7.703125 39.703125 9.234375 39.703125 12.3125 C 39.703125 15.625 41.359375 17.046875 43.78125 17.046875 Z M 14.625 30.359375 C 17.046875 30.359375 18.8125 28.8125 18.8125 25.625 C 18.8125 22.4375 17.046875 21.015625 14.625 21.015625 C 12.09375 21.015625 10.34375 22.4375 10.34375 25.625 C 10.34375 28.9375 12.09375 30.359375 14.625 30.359375 Z M 43.890625 30.359375 C 46.421875 30.359375 48.1875 28.8125 48.1875 25.625 C 48.1875 22.4375 46.421875 21.015625 43.890625 21.015625 C 41.46875 21.015625 39.703125 22.4375 39.703125 25.625 C 39.703125 28.9375 41.46875 30.359375 43.890625 30.359375 Z M 43.890625 30.359375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-liga:id2:glyph0-2">
+<path style="stroke:none;" d="M 35.53125 -56.546875 C 35.53125 -58.40625 34.546875 -59.40625 32.671875 -59.40625 C 30.796875 -59.40625 29.8125 -58.40625 29.8125 -56.546875 C 29.8125 -54.5625 30.796875 -53.5625 32.671875 -53.5625 C 34.546875 -53.5625 35.53125 -54.5625 35.53125 -56.546875 Z M 44.875 -54.5625 C 44.875 -56.546875 44 -57.53125 42.125 -57.53125 C 40.046875 -57.53125 39.046875 -56.546875 39.046875 -54.5625 C 39.046875 -52.6875 40.046875 -51.703125 42.125 -51.703125 C 44 -51.703125 44.875 -52.6875 44.875 -54.5625 Z M 26.296875 -54.5625 C 26.296875 -56.546875 25.296875 -57.53125 23.3125 -57.53125 C 21.453125 -57.53125 20.453125 -56.546875 20.453125 -54.5625 C 20.453125 -52.6875 21.453125 -51.703125 23.3125 -51.703125 C 25.296875 -51.703125 26.296875 -52.6875 26.296875 -54.5625 Z M 52.796875 -49.28125 C 52.796875 -51.265625 51.921875 -52.25 50.046875 -52.25 C 48.0625 -52.25 47.078125 -51.265625 47.078125 -49.28125 C 47.078125 -47.40625 48.0625 -46.421875 50.046875 -46.421875 C 51.921875 -46.421875 52.796875 -47.40625 52.796875 -49.28125 Z M 18.375 -49.28125 C 18.375 -51.265625 17.375 -52.25 15.40625 -52.25 C 13.53125 -52.25 12.546875 -51.265625 12.546875 -49.171875 C 12.546875 -47.296875 13.53125 -46.421875 15.40625 -46.421875 C 17.375 -46.421875 18.375 -47.40625 18.375 -49.28125 Z M 58.1875 -41.359375 C 58.1875 -43.234375 57.203125 -44.21875 55.328125 -44.21875 C 53.34375 -44.21875 52.359375 -43.234375 52.359375 -41.359375 C 52.359375 -39.375 53.34375 -38.390625 55.21875 -38.390625 C 57.203125 -38.390625 58.1875 -39.375 58.1875 -41.359375 Z M 12.984375 -41.359375 C 12.984375 -43.234375 11.984375 -44.21875 10.125 -44.21875 C 8.140625 -44.21875 7.15625 -43.234375 7.15625 -41.359375 C 7.15625 -39.375 8.140625 -38.390625 10.234375 -38.390625 C 12.09375 -38.390625 12.984375 -39.375 12.984375 -41.359375 Z M 60.0625 -32.015625 C 60.0625 -33.875 59.1875 -34.875 57.3125 -34.875 C 55.328125 -34.875 54.34375 -33.875 54.34375 -32.015625 C 54.34375 -30.140625 55.328125 -29.15625 57.3125 -29.15625 C 59.1875 -29.15625 60.0625 -30.140625 60.0625 -32.015625 Z M 11.109375 -32.015625 C 11.109375 -33.875 10.125 -34.875 8.25 -34.875 C 6.265625 -34.875 5.28125 -33.875 5.28125 -32.015625 C 5.28125 -30.140625 6.265625 -29.15625 8.25 -29.15625 C 10.125 -29.15625 11.109375 -30.140625 11.109375 -32.015625 Z M 58.1875 -22.65625 C 58.1875 -24.640625 57.203125 -25.625 55.21875 -25.625 C 53.34375 -25.625 52.359375 -24.640625 52.359375 -22.65625 C 52.359375 -20.796875 53.34375 -19.796875 55.21875 -19.796875 C 57.203125 -19.796875 58.1875 -20.796875 58.1875 -22.65625 Z M 12.984375 -22.65625 C 12.984375 -24.640625 11.984375 -25.625 10.125 -25.625 C 8.140625 -25.625 7.15625 -24.640625 7.15625 -22.65625 C 7.15625 -20.796875 8.140625 -19.796875 10.125 -19.796875 C 11.984375 -19.796875 12.984375 -20.796875 12.984375 -22.65625 Z M 52.796875 -14.625 C 52.796875 -16.609375 51.921875 -17.59375 50.046875 -17.59375 C 48.0625 -17.59375 47.078125 -16.609375 47.078125 -14.625 C 47.078125 -12.765625 48.0625 -11.765625 50.046875 -11.765625 C 51.921875 -11.765625 52.796875 -12.765625 52.796875 -14.625 Z M 18.375 -14.625 C 18.375 -16.609375 17.375 -17.59375 15.40625 -17.59375 C 13.53125 -17.59375 12.546875 -16.609375 12.546875 -14.625 C 12.546875 -12.765625 13.53125 -11.765625 15.40625 -11.765625 C 17.375 -11.765625 18.375 -12.765625 18.375 -14.625 Z M 44.875 -9.34375 C 44.875 -11.328125 44 -12.3125 42.125 -12.3125 C 40.046875 -12.3125 39.046875 -11.328125 39.046875 -9.34375 C 39.046875 -7.484375 40.046875 -6.59375 42.125 -6.59375 C 44 -6.59375 44.875 -7.484375 44.875 -9.34375 Z M 26.296875 -9.5625 C 26.296875 -11.4375 25.296875 -12.3125 23.3125 -12.3125 C 21.453125 -12.3125 20.453125 -11.328125 20.453125 -9.34375 C 20.453125 -7.484375 21.453125 -6.59375 23.3125 -6.59375 C 25.296875 -6.59375 26.296875 -7.59375 26.296875 -9.5625 Z M 35.53125 -7.59375 C 35.53125 -9.453125 34.546875 -10.453125 32.671875 -10.453125 C 30.796875 -10.453125 29.8125 -9.453125 29.8125 -7.59375 C 29.8125 -5.609375 30.796875 -4.625 32.671875 -4.625 C 34.546875 -4.625 35.53125 -5.609375 35.53125 -7.59375 Z M 35.53125 -7.59375 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hebrew-liga:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,16.66015625)"><g id="hebrew-liga:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="100.5625" class="c1" href="#hebrew-liga:id0:glyph0-1"></use>
+  <use x="16" y="100.5625" class="z" href="#hebrew-liga:id0:glyph0-2"></use>
+  <use x="36.6875" y="99.015625" class="c0" href="#hebrew-liga:id0:glyph0-3"></use>
+  <use x="16" y="100.5625" class="dc" href="#hebrew-liga:id0:glyph0-4"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-liga:id1:id1" transform="matrix(1.25,0,0,1.25,121.6796875,0.0)"><g id="hebrew-liga:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hebrew-liga:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-liga:id2:id2" transform="matrix(1.25,0,0,1.25,254.27734375,16.66015625)"><g id="hebrew-liga:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="32.390625" y="99.015625" class="c2" href="#hebrew-liga:id2:glyph0-1"></use>
+  <use x="16" y="100.5625" class="dc" href="#hebrew-liga:id2:glyph0-2"></use>
+</g>
+</g>
+</g>
+</svg>
+<figcaption>
+<p><span class="caption-number">Fig. 19.4.3 </span><span class="caption-text">Standard ligature substitution</span><a class="headerlink" href="#id6" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hebrew-liga" onclick='toggleColor("hebrew-liga")'>Toggle cluster colors</button></section>
+<section id="stage-4-step-2-dlig">
+<h4>Stage 4, step 2: dlig<a class="headerlink" href="#stage-4-step-2-dlig" title="Link to this heading">¶</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">dlig</span></code> feature substitutes additional optional ligatures that are
+off by default. Substitutions made by <code class="docutils literal notranslate"><span class="pre">dlig</span></code> may be disabled by
+application-level user interfaces.</p>
+<figure class="align-default" id="id7">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hebrew-dlig" viewbox="0 0 436.58203125 201.40625" class="shaping-demo inline-svg greyscale-svg" names="hebrew-dlig" uri="images/hebrew/hebrew-dlig.svg" alt="Discretionary ligature substitution" title="Discretionary ligature substitution" original_uri="/images/hebrew/hebrew-dlig.svg">
+  <defs><g>
+<symbol overflow="visible" id="hebrew-dlig:hebrew-dlig:id0:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 10.34375 -78.546875 L 55.546875 -78.546875 L 55.546875 0 Z M 15.953125 -5.609375 L 49.9375 -5.609375 L 49.9375 -72.9375 L 15.953125 -72.9375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-dlig:hebrew-dlig:id0:glyph0-1">
+<path style="stroke:none;" d="M 23.65625 0.765625 C 22.332031 0.765625 21.394531 0.378906 20.84375 -0.390625 C 20.289062 -1.160156 20.015625 -2.535156 20.015625 -4.515625 L 20.015625 -7.15625 C 20.015625 -8.914062 20.363281 -10.472656 21.0625 -11.828125 C 21.757812 -13.179688 22.914062 -14.738281 24.53125 -16.5 L 40.703125 -34.4375 C 41.648438 -35.457031 42.304688 -36.316406 42.671875 -37.015625 C 43.046875 -37.710938 43.234375 -38.5 43.234375 -39.375 L 43.234375 -48.0625 C 43.234375 -51.4375 41.546875 -53.125 38.171875 -53.125 L 9.234375 -53.125 C 7.398438 -53.125 6.039062 -53.75 5.15625 -55 C 4.28125 -56.25 3.84375 -58.007812 3.84375 -60.28125 C 3.84375 -61.53125 4.046875 -63.125 4.453125 -65.0625 C 4.859375 -67.007812 5.351562 -69.046875 5.9375 -71.171875 C 6.519531 -73.296875 7.101562 -75.3125 7.6875 -77.21875 C 8.28125 -79.125 8.722656 -80.628906 9.015625 -81.734375 C 9.378906 -83.117188 8.941406 -83.925781 7.703125 -84.15625 L 4.40625 -84.59375 C 3.007812 -84.738281 2.144531 -85.25 1.8125 -86.125 C 1.476562 -87.007812 1.3125 -88 1.3125 -89.09375 C 1.3125 -90.125 1.550781 -91.390625 2.03125 -92.890625 C 2.507812 -94.398438 2.859375 -95.445312 3.078125 -96.03125 L 5.28125 -96.03125 L 5.28125 -95.703125 C 5.28125 -93.648438 6.085938 -92.515625 7.703125 -92.296875 L 11.546875 -91.734375 C 13.015625 -91.515625 13.96875 -90.78125 14.40625 -89.53125 C 14.84375 -88.289062 14.660156 -86.238281 13.859375 -83.375 L 10.5625 -70.734375 C 9.601562 -66.992188 11.03125 -65.125 14.84375 -65.125 L 39.59375 -65.125 C 42.457031 -65.125 44.566406 -64.550781 45.921875 -63.40625 C 47.273438 -62.269531 48.15625 -60.878906 48.5625 -59.234375 C 48.96875 -57.585938 49.171875 -55.921875 49.171875 -54.234375 L 49.0625 -39.484375 C 49.0625 -38.097656 48.820312 -36.722656 48.34375 -35.359375 C 47.863281 -34.003906 46.894531 -32.519531 45.4375 -30.90625 L 29.8125 -13.75 C 28.925781 -12.875 28.335938 -11.957031 28.046875 -11 C 27.753906 -10.039062 27.609375 -8.832031 27.609375 -7.375 L 27.609375 -4.515625 C 27.609375 -0.992188 26.289062 0.765625 23.65625 0.765625 Z M 23.65625 0.765625 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-dlig:hebrew-dlig:id0:glyph0-2">
+<path style="stroke:none;" d="M 5.71875 0 L 5.71875 -5.0625 L 6.703125 -5.0625 C 8.390625 -5.0625 9.507812 -5.375 10.0625 -6 C 10.613281 -6.625 10.707031 -7.628906 10.34375 -9.015625 L 8.46875 -17.046875 C 7.664062 -20.640625 7.335938 -23.882812 7.484375 -26.78125 C 7.628906 -29.675781 8.617188 -32.59375 10.453125 -35.53125 L 15.734375 -44.21875 L 9.453125 -51.375 C 7.617188 -53.425781 6.535156 -55.421875 6.203125 -57.359375 C 5.878906 -59.304688 5.71875 -60.644531 5.71875 -61.375 C 5.71875 -63.5 6.007812 -65.257812 6.59375 -66.65625 C 7.1875 -68.050781 7.8125 -69.554688 8.46875 -71.171875 L 11.109375 -71.171875 L 11.109375 -70.734375 C 11.109375 -69.628906 11.398438 -68.304688 11.984375 -66.765625 C 12.578125 -65.222656 13.898438 -63.28125 15.953125 -60.9375 L 39.15625 -34.546875 C 39.300781 -35.710938 39.6875 -37.101562 40.3125 -38.71875 C 40.9375 -40.332031 41.578125 -41.765625 42.234375 -43.015625 L 47.84375 -53.34375 L 45.3125 -53.796875 C 43.476562 -54.085938 42.101562 -54.65625 41.1875 -55.5 C 40.269531 -56.34375 39.8125 -58.117188 39.8125 -60.828125 C 39.8125 -62.078125 40.015625 -63.582031 40.421875 -65.34375 C 40.828125 -67.101562 41.503906 -69.046875 42.453125 -71.171875 L 45.4375 -71.171875 L 45.4375 -70.515625 C 45.4375 -68.828125 45.835938 -67.597656 46.640625 -66.828125 C 47.441406 -66.054688 48.578125 -65.523438 50.046875 -65.234375 L 56.09375 -64.234375 C 58.957031 -63.796875 60.390625 -61.816406 60.390625 -58.296875 C 60.390625 -57.566406 60.332031 -56.742188 60.21875 -55.828125 C 60.113281 -54.910156 59.878906 -53.460938 59.515625 -51.484375 L 52.578125 -52.578125 L 47.078125 -42.34375 C 45.828125 -39.925781 44.960938 -37.617188 44.484375 -35.421875 C 44.015625 -33.222656 43.78125 -31.171875 43.78125 -29.265625 L 55.21875 -16.171875 C 56.6875 -14.484375 57.675781 -12.90625 58.1875 -11.4375 C 58.695312 -9.96875 58.953125 -8.503906 58.953125 -7.046875 C 58.953125 -4.691406 58.53125 -2.945312 57.6875 -1.8125 C 56.851562 -0.675781 55.992188 0.289062 55.109375 1.09375 L 53.5625 1.09375 C 53.488281 0.144531 53.160156 -0.820312 52.578125 -1.8125 C 51.992188 -2.800781 50.96875 -4.101562 49.5 -5.71875 L 18.8125 -40.703125 L 16.390625 -36.1875 C 15.066406 -33.695312 14.332031 -31.382812 14.1875 -29.25 C 14.039062 -27.125 14.59375 -24.671875 15.84375 -21.890625 L 20.015625 -12.65625 C 21.921875 -8.320312 21.921875 -4.101562 20.015625 0 Z M 5.71875 0 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-dlig:hebrew-dlig:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-dlig:hebrew-dlig:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-dlig:hebrew-dlig:id2:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 10.34375 -78.546875 L 55.546875 -78.546875 L 55.546875 0 Z M 15.953125 -5.609375 L 49.9375 -5.609375 L 49.9375 -72.9375 L 15.953125 -72.9375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-dlig:hebrew-dlig:id2:glyph0-1">
+<path style="stroke:none;" d="M 51.703125 1.09375 C 51.628906 0.144531 51.296875 -0.820312 50.703125 -1.8125 C 50.117188 -2.800781 49.09375 -4.101562 47.625 -5.71875 L 7.59375 -51.375 C 5.757812 -53.5 4.675781 -55.332031 4.34375 -56.875 C 4.007812 -58.414062 3.84375 -59.550781 3.84375 -60.28125 C 3.84375 -61.53125 4.046875 -63.125 4.453125 -65.0625 C 4.859375 -67.007812 5.351562 -69.082031 5.9375 -71.28125 C 6.519531 -73.476562 7.101562 -75.507812 7.6875 -77.375 C 8.28125 -79.25 8.722656 -80.703125 9.015625 -81.734375 C 9.378906 -83.117188 8.941406 -83.925781 7.703125 -84.15625 L 4.40625 -84.59375 C 3.007812 -84.738281 2.144531 -85.25 1.8125 -86.125 C 1.476562 -87.007812 1.3125 -88 1.3125 -89.09375 C 1.3125 -90.125 1.550781 -91.390625 2.03125 -92.890625 C 2.507812 -94.398438 2.859375 -95.445312 3.078125 -96.03125 L 5.28125 -96.03125 L 5.28125 -95.59375 C 5.28125 -94.488281 5.5 -93.695312 5.9375 -93.21875 C 6.375 -92.75 6.960938 -92.441406 7.703125 -92.296875 L 11.546875 -91.734375 C 13.015625 -91.515625 13.96875 -90.78125 14.40625 -89.53125 C 14.84375 -88.289062 14.660156 -86.238281 13.859375 -83.375 L 10.5625 -70.734375 C 10.269531 -69.554688 10.210938 -68.269531 10.390625 -66.875 C 10.578125 -65.488281 11.804688 -63.507812 14.078125 -60.9375 L 37.296875 -34.546875 C 37.441406 -35.710938 37.820312 -37.101562 38.4375 -38.71875 C 39.0625 -40.332031 39.707031 -41.765625 40.375 -43.015625 L 45.984375 -53.34375 L 43.453125 -53.796875 C 41.617188 -54.085938 40.242188 -54.65625 39.328125 -55.5 C 38.410156 -56.34375 37.953125 -58.117188 37.953125 -60.828125 C 37.953125 -62.078125 38.148438 -63.582031 38.546875 -65.34375 C 38.953125 -67.101562 39.632812 -69.046875 40.59375 -71.171875 L 43.5625 -71.171875 L 43.5625 -70.515625 C 43.5625 -68.828125 43.960938 -67.578125 44.765625 -66.765625 C 45.578125 -65.960938 46.71875 -65.453125 48.1875 -65.234375 L 54.234375 -64.234375 C 57.085938 -63.796875 58.515625 -61.816406 58.515625 -58.296875 C 58.515625 -57.566406 58.457031 -56.742188 58.34375 -55.828125 C 58.238281 -54.910156 58.003906 -53.460938 57.640625 -51.484375 L 50.703125 -52.578125 L 45.203125 -42.34375 C 43.960938 -39.925781 43.101562 -37.617188 42.625 -35.421875 C 42.144531 -33.222656 41.90625 -31.171875 41.90625 -29.265625 L 53.34375 -16.171875 C 54.8125 -14.484375 55.800781 -12.90625 56.3125 -11.4375 C 56.832031 -9.96875 57.09375 -8.503906 57.09375 -7.046875 C 57.09375 -4.691406 56.671875 -2.945312 55.828125 -1.8125 C 54.984375 -0.675781 54.117188 0.289062 53.234375 1.09375 Z M 51.703125 1.09375 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hebrew-dlig:hebrew-dlig:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,16.66015625)"><g id="hebrew-dlig:hebrew-dlig:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="100.5625" class="c1" href="#hebrew-dlig:hebrew-dlig:id0:glyph0-1"></use>
+  <use x="67.46875" y="100.5625" class="c0" href="#hebrew-dlig:hebrew-dlig:id0:glyph0-2"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-dlig:hebrew-dlig:id1:id1" transform="matrix(1.25,0,0,1.25,185.33203125,0.0)"><g id="hebrew-dlig:hebrew-dlig:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hebrew-dlig:hebrew-dlig:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-dlig:hebrew-dlig:id2:id2" transform="matrix(1.25,0,0,1.25,317.9296875,16.66015625)"><g id="hebrew-dlig:hebrew-dlig:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="100.5625" class="c2" href="#hebrew-dlig:hebrew-dlig:id2:glyph0-1"></use>
+</g>
+</g>
+</g>
+</svg><figcaption>
+<p><span class="caption-number">Fig. 19.4.4 </span><span class="caption-text">Discretionary ligature substitution</span><a class="headerlink" href="#id7" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hebrew-dlig" onclick='toggleColor("hebrew-dlig")'>Toggle cluster colors</button></section>
+</section>
+<section id="stage-5-applying-the-positioning-features-from-gpos">
+<h3><span class="section-number">19.4.5. </span>Stage 5: Applying the positioning features from <abbr>GPOS</abbr><a class="headerlink" href="#stage-5-applying-the-positioning-features-from-gpos" title="Link to this heading">¶</a></h3>
+<p>The positioning stage adjusts the positions of mark and base
+glyphs.</p>
+<p>The order in which these features are applied is fixed for
+the Hebrew shaping model:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>kern
+mark
+</pre></div>
+</div>
+<section id="stage-5-step-1-kern">
+<h4>Stage 5, step 1: <code class="docutils literal notranslate"><span class="pre">kern</span></code><a class="headerlink" href="#stage-5-step-1-kern" title="Link to this heading">¶</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">kern</span></code> adjusts glyph spacing between pairs of adjacent glyphs.</p>
+<figure class="align-default" id="id8">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hebrew-kern" viewbox="0 0 454.84375 201.40625" class="shaping-demo inline-svg greyscale-svg" names="hebrew-kern" uri="images/hebrew/hebrew-kern.svg" alt="Kerning application" title="Kerning application" original_uri="/images/hebrew/hebrew-kern.svg">
+  <defs><g>
+<symbol overflow="visible" id="hebrew-kern:id0:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-kern:id0:glyph0-1">
+<path style="stroke:none;" d="M 3.734375 9.453125 L 6.046875 9.453125 L 23.3125 -1.984375 C 42.125 -14.40625 51.59375 -41.25 53.5625 -53.125 L 54.453125 -58.515625 C 55 -61.8125 53.125 -63.796875 50.046875 -64.234375 L 43.453125 -65.234375 C 40.484375 -65.671875 38.828125 -67.203125 38.828125 -70.734375 L 38.828125 -71.171875 L 35.859375 -71.171875 C 33.765625 -65.453125 33.21875 -63.359375 33.21875 -60.609375 C 33.21875 -55.546875 34.984375 -54.453125 38.71875 -53.90625 L 48.1875 -52.578125 L 47.953125 -51.484375 C 46.421875 -43.78125 39.59375 -28.484375 28.9375 -19.25 L 19.578125 -37.625 C 17.59375 -41.578125 16.5 -47.625 16.71875 -52.6875 L 24.640625 -51.59375 C 25.296875 -55.546875 25.515625 -56.765625 25.515625 -58.296875 C 25.515625 -61.9375 24.203125 -63.90625 21.234375 -64.234375 L 13.53125 -65.234375 C 10.453125 -65.671875 8.90625 -67.3125 8.90625 -70.734375 L 8.90625 -71.171875 L 5.9375 -71.171875 C 4.0625 -66.109375 3.296875 -63.46875 3.296875 -60.28125 C 3.296875 -55.875 4.84375 -54.453125 8.796875 -53.90625 L 12.65625 -53.34375 C 11.765625 -46.203125 12.4375 -37.40625 14.734375 -32.125 L 22.546875 -14.625 L 3.734375 -3.84375 Z M 3.734375 9.453125 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-kern:id0:glyph0-2">
+<path style="stroke:none;" d="M 33.4375 0.984375 L 34.4375 0.984375 C 35.75 0.875 38.390625 -0.328125 39.265625 -1.765625 L 34.65625 -12.4375 C 32.234375 -17.9375 31.125 -20.125 31.125 -25.40625 L 31.125 -58.84375 C 31.125 -63.46875 29.703125 -65.125 25.953125 -65.125 L 19.90625 -65.125 C 16.0625 -65.125 14.078125 -67.3125 14.078125 -70.84375 L 14.078125 -71.171875 L 11.109375 -71.171875 C 9.90625 -65.671875 9.5625 -63.46875 9.5625 -61.046875 C 9.5625 -55.328125 11.4375 -53.125 14.953125 -53.125 L 22.21875 -53.125 C 24.75 -53.125 25.1875 -52.03125 25.1875 -49.171875 L 25.1875 -18.375 C 25.1875 -14.515625 19.796875 -11.984375 15.625 -11.984375 L 4.296875 -11.984375 L 1.3125 0 L 18.046875 0 C 20.90625 0 22.4375 -1.3125 23.765625 -4.515625 L 26.84375 -12.203125 C 29.046875 -8.578125 30.578125 -5.390625 33.4375 0.984375 Z M 33.4375 0.984375 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-kern:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-kern:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-kern:id2:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-kern:id2:glyph0-1">
+<path style="stroke:none;" d="M 3.734375 9.453125 L 6.046875 9.453125 L 23.3125 -1.984375 C 42.125 -14.40625 51.59375 -41.25 53.5625 -53.125 L 54.453125 -58.515625 C 55 -61.8125 53.125 -63.796875 50.046875 -64.234375 L 43.453125 -65.234375 C 40.484375 -65.671875 38.828125 -67.203125 38.828125 -70.734375 L 38.828125 -71.171875 L 35.859375 -71.171875 C 33.765625 -65.453125 33.21875 -63.359375 33.21875 -60.609375 C 33.21875 -55.546875 34.984375 -54.453125 38.71875 -53.90625 L 48.1875 -52.578125 L 47.953125 -51.484375 C 46.421875 -43.78125 39.59375 -28.484375 28.9375 -19.25 L 19.578125 -37.625 C 17.59375 -41.578125 16.5 -47.625 16.71875 -52.6875 L 24.640625 -51.59375 C 25.296875 -55.546875 25.515625 -56.765625 25.515625 -58.296875 C 25.515625 -61.9375 24.203125 -63.90625 21.234375 -64.234375 L 13.53125 -65.234375 C 10.453125 -65.671875 8.90625 -67.3125 8.90625 -70.734375 L 8.90625 -71.171875 L 5.9375 -71.171875 C 4.0625 -66.109375 3.296875 -63.46875 3.296875 -60.28125 C 3.296875 -55.875 4.84375 -54.453125 8.796875 -53.90625 L 12.65625 -53.34375 C 11.765625 -46.203125 12.4375 -37.40625 14.734375 -32.125 L 22.546875 -14.625 L 3.734375 -3.84375 Z M 3.734375 9.453125 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-kern:id2:glyph0-2">
+<path style="stroke:none;" d="M 33.4375 0.984375 L 34.4375 0.984375 C 35.75 0.875 38.390625 -0.328125 39.265625 -1.765625 L 34.65625 -12.4375 C 32.234375 -17.9375 31.125 -20.125 31.125 -25.40625 L 31.125 -58.84375 C 31.125 -63.46875 29.703125 -65.125 25.953125 -65.125 L 19.90625 -65.125 C 16.0625 -65.125 14.078125 -67.3125 14.078125 -70.84375 L 14.078125 -71.171875 L 11.109375 -71.171875 C 9.90625 -65.671875 9.5625 -63.46875 9.5625 -61.046875 C 9.5625 -55.328125 11.4375 -53.125 14.953125 -53.125 L 22.21875 -53.125 C 24.75 -53.125 25.1875 -52.03125 25.1875 -49.171875 L 25.1875 -18.375 C 25.1875 -14.515625 19.796875 -11.984375 15.625 -11.984375 L 4.296875 -11.984375 L 1.3125 0 L 18.046875 0 C 20.90625 0 22.4375 -1.3125 23.765625 -4.515625 L 26.84375 -12.203125 C 29.046875 -8.578125 30.578125 -5.390625 33.4375 0.984375 Z M 33.4375 0.984375 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hebrew-kern:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,16.66015625)"><g id="hebrew-kern:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="100.5625" class="c1" href="#hebrew-kern:id0:glyph0-1"></use>
+  <use x="74.734375" y="100.5625" class="c0" href="#hebrew-kern:id0:glyph0-2"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-kern:id1:id1" transform="matrix(1.25,0,0,1.25,165.25390625,0.0)"><g id="hebrew-kern:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hebrew-kern:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-kern:id2:id2" transform="matrix(1.25,0,0,1.25,297.8515625,16.66015625)"><g id="hebrew-kern:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="100.5625" class="c1" href="#hebrew-kern:id2:glyph0-1"></use>
+  <use x="68.125" y="100.5625" class="c0" href="#hebrew-kern:id2:glyph0-2"></use>
+</g>
+</g>
+</g>
+</svg>
+<figcaption>
+<p><span class="caption-number">Fig. 19.4.5 </span><span class="caption-text">Kerning application</span><a class="headerlink" href="#id8" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hebrew-kern" onclick='toggleColor("hebrew-kern")'>Toggle cluster colors</button></section>
+<section id="stage-5-step-2-mark">
+<h4>Stage 5, step 2: <code class="docutils literal notranslate"><span class="pre">mark</span></code><a class="headerlink" href="#stage-5-step-2-mark" title="Link to this heading">¶</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">mark</span></code> feature positions marks with respect to base glyphs.</p>
+<figure class="align-default" id="id9">
+<svg xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" version="1.1" width="100%" id="hebrew-mark" viewbox="0 0 347.91015625 201.40625" class="shaping-demo inline-svg greyscale-svg" names="hebrew-mark" uri="images/hebrew/hebrew-mark.svg" alt="Mark positioning" title="Mark positioning" original_uri="/images/hebrew/hebrew-mark.svg">
+  <defs><g>
+<symbol overflow="visible" id="hebrew-mark:id0:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-mark:id0:glyph0-1">
+<path style="stroke:none;" d="M 7.59375 17.046875 C 10.015625 17.046875 11.765625 15.515625 11.765625 12.3125 C 11.765625 9.234375 10.015625 7.703125 7.59375 7.703125 C 5.0625 7.703125 3.40625 9.234375 3.40625 12.3125 C 3.40625 15.625 5.0625 17.046875 7.59375 17.046875 Z M 22.65625 17.046875 C 25.1875 17.046875 26.953125 15.515625 26.953125 12.3125 C 26.953125 9.234375 25.1875 7.703125 22.65625 7.703125 C 20.234375 7.703125 18.59375 9.234375 18.59375 12.3125 C 18.59375 15.625 20.234375 17.046875 22.65625 17.046875 Z M 34.765625 17.046875 C 37.296875 17.046875 39.046875 15.515625 39.046875 12.3125 C 39.046875 9.234375 37.296875 7.703125 34.765625 7.703125 C 32.34375 7.703125 30.6875 9.234375 30.6875 12.3125 C 30.6875 15.625 32.34375 17.046875 34.765625 17.046875 Z M 34.875 30.359375 C 37.40625 30.359375 39.15625 28.8125 39.15625 25.625 C 39.15625 22.4375 37.40625 21.015625 34.875 21.015625 C 32.453125 21.015625 30.6875 22.4375 30.6875 25.625 C 30.6875 28.9375 32.453125 30.359375 34.875 30.359375 Z M 15.1875 30.359375 C 17.59375 30.359375 19.359375 28.8125 19.359375 25.625 C 19.359375 22.4375 17.59375 21.015625 15.1875 21.015625 C 12.65625 21.015625 10.890625 22.4375 10.890625 25.625 C 10.890625 28.9375 12.65625 30.359375 15.1875 30.359375 Z M 15.1875 30.359375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-mark:id0:glyph0-2">
+<path style="stroke:none;" d="M 35.203125 0.765625 L 36.84375 0.765625 C 39.375 -0.328125 41.140625 -1.546875 42.796875 -3.1875 L 41.25 -53.125 L 48.625 -53.125 L 48.625 -61.484375 C 48.625 -64.234375 47.734375 -65.125 45.3125 -65.125 L 11.65625 -65.125 C 7.8125 -65.125 5.828125 -67.3125 5.828125 -70.84375 L 5.828125 -71.171875 L 2.859375 -71.171875 C 1.65625 -65.671875 1.3125 -63.578125 1.3125 -60.71875 C 1.3125 -55.328125 3.296875 -53.125 6.703125 -53.125 L 37.296875 -53.125 L 37.296875 -53.015625 C 36.515625 -49.390625 35.203125 -43.234375 35.203125 -33.4375 Z M 35.203125 0.765625 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-mark:id1:glyph0-0">
+<path style="stroke:none;" d="M 5.375 -96.6875 L 69.828125 -96.6875 L 69.828125 0 L 5.375 0 Z M 8.0625 -2.6875 L 67.140625 -2.6875 L 67.140625 -94 L 8.0625 -94 Z M 8.0625 -2.6875 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-mark:id1:glyph0-1">
+<path style="stroke:none;" d="M 68.15625 -13.75 L 66.28125 -18.640625 L 88.09375 -27.390625 L 6.984375 -27.390625 L 6.984375 -34 L 88.09375 -34 L 66.28125 -42.75 L 68.15625 -47.640625 L 99.09375 -34.265625 L 99.09375 -27.125 Z M 68.15625 -13.75 "></path>
+</symbol>
+</g>
+<g>
+<symbol overflow="visible" id="hebrew-mark:id2:glyph0-0">
+<path style="stroke:none;" d="M 10.34375 0 L 55.546875 0 L 55.546875 -78.546875 L 10.34375 -78.546875 Z M 15.953125 -5.609375 L 15.953125 -72.9375 L 49.9375 -72.9375 L 49.9375 -5.609375 Z M 15.953125 -5.609375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-mark:id2:glyph0-1">
+<path style="stroke:none;" d="M 7.59375 17.046875 C 10.015625 17.046875 11.765625 15.515625 11.765625 12.3125 C 11.765625 9.234375 10.015625 7.703125 7.59375 7.703125 C 5.0625 7.703125 3.40625 9.234375 3.40625 12.3125 C 3.40625 15.625 5.0625 17.046875 7.59375 17.046875 Z M 22.65625 17.046875 C 25.1875 17.046875 26.953125 15.515625 26.953125 12.3125 C 26.953125 9.234375 25.1875 7.703125 22.65625 7.703125 C 20.234375 7.703125 18.59375 9.234375 18.59375 12.3125 C 18.59375 15.625 20.234375 17.046875 22.65625 17.046875 Z M 34.765625 17.046875 C 37.296875 17.046875 39.046875 15.515625 39.046875 12.3125 C 39.046875 9.234375 37.296875 7.703125 34.765625 7.703125 C 32.34375 7.703125 30.6875 9.234375 30.6875 12.3125 C 30.6875 15.625 32.34375 17.046875 34.765625 17.046875 Z M 34.875 30.359375 C 37.40625 30.359375 39.15625 28.8125 39.15625 25.625 C 39.15625 22.4375 37.40625 21.015625 34.875 21.015625 C 32.453125 21.015625 30.6875 22.4375 30.6875 25.625 C 30.6875 28.9375 32.453125 30.359375 34.875 30.359375 Z M 15.1875 30.359375 C 17.59375 30.359375 19.359375 28.8125 19.359375 25.625 C 19.359375 22.4375 17.59375 21.015625 15.1875 21.015625 C 12.65625 21.015625 10.890625 22.4375 10.890625 25.625 C 10.890625 28.9375 12.65625 30.359375 15.1875 30.359375 Z M 15.1875 30.359375 "></path>
+</symbol>
+<symbol overflow="visible" id="hebrew-mark:id2:glyph0-2">
+<path style="stroke:none;" d="M 35.203125 0.765625 L 36.84375 0.765625 C 39.375 -0.328125 41.140625 -1.546875 42.796875 -3.1875 L 41.25 -53.125 L 48.625 -53.125 L 48.625 -61.484375 C 48.625 -64.234375 47.734375 -65.125 45.3125 -65.125 L 11.65625 -65.125 C 7.8125 -65.125 5.828125 -67.3125 5.828125 -70.84375 L 5.828125 -71.171875 L 2.859375 -71.171875 C 1.65625 -65.671875 1.3125 -63.578125 1.3125 -60.71875 C 1.3125 -55.328125 3.296875 -53.125 6.703125 -53.125 L 37.296875 -53.125 L 37.296875 -53.015625 C 36.515625 -49.390625 35.203125 -43.234375 35.203125 -33.4375 Z M 35.203125 0.765625 "></path>
+</symbol>
+</g>
+</defs>
+  <g id="hebrew-mark:id0:id0" transform="matrix(1.25,0,0,1.25,0.0,16.66015625)"><g id="hebrew-mark:id0:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="16" y="100.5625" class="c1" href="#hebrew-mark:id0:glyph0-1"></use>
+  <use x="16" y="100.5625" class="c0" href="#hebrew-mark:id0:glyph0-2"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-mark:id1:id1" transform="matrix(1.25,0,0,1.25,107.65625,0.0)"><g id="hebrew-mark:id1:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="0" y="120.84375" class="arrow" href="#hebrew-mark:id1:glyph0-1"></use>
+</g>
+</g>
+</g>
+  <g id="hebrew-mark:id2:id2" transform="matrix(1.25,0,0,1.25,240.25390625,16.66015625)"><g id="hebrew-mark:id2:surface1">
+<g style="fill:rgb(0%,0%,0%);fill-opacity:1;">
+  <use x="34.921875" y="100.5625" class="c1" href="#hebrew-mark:id2:glyph0-1"></use>
+  <use x="16" y="100.5625" class="c0" href="#hebrew-mark:id2:glyph0-2"></use>
+</g>
+</g>
+</g>
+</svg>
+<figcaption>
+<p><span class="caption-number">Fig. 19.4.6 </span><span class="caption-text">Mark positioning</span><a class="headerlink" href="#id9" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<button class="svg-color-toggle-button" id="button-hebrew-mark" onclick='toggleColor("hebrew-mark")'>Toggle cluster colors</button></section>
+</section>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">OpenType<br>Shaping<br>Documents</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=n8willis&repo=opentype-shaping-documents&type=watch&count=True&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+<h3>Contents</h3>
+<ul class="current">
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/index.html">Overview</a>
+  </li>
+  <li class="toctree-l1 static-nav static-nav-heading">
+    Script shaping
+    <ul class="current">
+      <li class="toctree-l2 static-nav static-nav-heading">
+	Indic Model
+	<ul class="current">
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-indic-general.html">Indic general</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-devanagari.html">Devanagari</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-bengali.html">Bengali</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-gujarati.html">Gujarati</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-gurmukhi.html">Gurmukhi</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-kannada.html">Kannada</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-malayalam.html">Malayalam</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-oriya.html">Oriya</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-sinhala.html">Sinhala</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-tamil.html">Tamil</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-telugu.html">Telugu</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-vedic-extensions.html">Vedic Extensions</a>
+	  </li>
+	</ul>
+      </li>
+      <li class="toctree-l2 static-nav static-nav-heading">
+	Arabic Model
+	<ul class="current">
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-arabic-general.html">Arabic general</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-arabic.html">Arabic</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-nko.html">N'Ko</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-syriac.html">Syriac</a>
+	  </li>
+	  <li class="toctree-l3 static-nav">
+	    <a class="reference internal" href="/opentype-shaping-mongolian.html">Mongolian</a>
+	  </li>
+	</ul>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-hangul.html">Hangul</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-hebrew.html">Hebrew</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-khmer.html">Khmer</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-myanmar.html">Myanmar</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-thai-lao.html">Thai and Lao</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-tibetan.html">Tibetan</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-use.html">Universal Shaping Engine</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-default.html">Default scripts</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/opentype-shaping-emoji.html">Emoji</a>
+      </li>
+    </ul>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/opentype-shaping-normalization.html">Normalization</a>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/notes/README.html">Notes</a>
+    <ul>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/notes/uniscribe-bug-compatibility.html">Uniscribe compatibility</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/notes/ragel-machine-notation.html">Ragel state-machine operators</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/notes/emoji-implementation.html">Emoji implementation</a>
+      </li>
+    </ul>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/character-tables/character-tables-index.html">Character Tables</a>
+    <ul>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-arabic.html">Arabic</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-bengali.html">Bengali</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-devanagari.html">Devanagari</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-gujarati.html">Gujarati</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-gurmukhi.html">Gurmukhi</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-hangul.html">Hangul</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-hebrew.html">Hebrew</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-kannada.html">Kannada</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-khmer.html">Khmer</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-lao.html">Lao</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-malayalam.html">Malayalam</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-mongolian.html">Mongolian</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-myanmar.html">Myanmar</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-nko.html">N'Ko</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-oriya.html">Oriya</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-sinhala.html">Sinhala</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-syriac.html">Syriac</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-tamil.html">Tamil</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-telugu.html">Telugu</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-thai.html">Thai</a>
+      </li>
+      <li class="toctree-l2 static-nav">
+	<a class="reference internal" href="/character-tables/character-tables-tibetan.html">Tibetan</a>
+      </li>
+    </ul>    
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference internal" href="/errata.html">Errata</a>
+  </li>
+</ul>
+
+<hr>
+
+<ul class="extra-links">
+  <li class="toctree-l1 static-nav">
+    <a class="reference external" href="https://github.com/n8willis/opentype-shaping-documents/issues">GitHub issues</a>
+  </li>
+  <li class="toctree-l1 static-nav">
+    <a class="reference external" href="https://github.com/n8willis/opentype-shaping-documents/blob/master/BUILD.md">Build process</a>
+  </li>
+</ul>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/opentype-shaping-hebrew.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2022, Sponsored by YesLogic.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/opentype-shaping-hebrew.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
