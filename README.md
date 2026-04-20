@@ -1,4 +1,4 @@
-# fontspec-site
+# fontspec
 
 [Documentation of OpenType shaping behavior](opentype-shaping/) [for implementations]
 
