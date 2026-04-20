@@ -1,7 +1,6 @@
 # fontspec-site
 
 [Documentation of OpenType shaping behavior](opentype-shaping/) [for implementations]
-<https://github.com/n8willis/opentype-shaping-documents/>
 
 Indic text shaping for type designers  
 <https://github.com/typotheque/text-shaping>
