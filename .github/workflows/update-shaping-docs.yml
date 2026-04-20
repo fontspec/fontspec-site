@@ -16,7 +16,13 @@ jobs:
 
       - name: Download latest shaping docs release
         run: |
-          gh release download latest \
+          TAG=$(gh release list \
+            --repo n8willis/opentype-shaping-documents \
+            --limit 1 \
+            --json tagName \
+            --jq '.[0].tagName')
+          echo "Downloading release $TAG"
+          gh release download "$TAG" \
             --repo n8willis/opentype-shaping-documents \
             --pattern 'ShapingDocumentsHTML.zip' \
             --dir /tmp
